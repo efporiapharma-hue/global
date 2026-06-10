@@ -45,7 +45,7 @@ export function getPrescriptionPrintHtml(
   const presDate = prescription?.date || new Date().toISOString().split('T')[0];
   const patMRN = patient?.mrn || 'N/A';
 
-  const docName = doctor?.name || 'Dr. Rajesh Sharma';
+  const docName = doctor?.name || 'Attending Doctor';
   const docReg = doctor?.degree ? `Reg No: MC-${doctor.id?.toUpperCase() || '1234567'}` : 'Reg No: MC1234567';
   const docSpecialty = doctor?.specialization || doctor?.department || 'Senior Consultant';
 

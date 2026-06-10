@@ -313,9 +313,18 @@ export default function OPD() {
       setSavedPrescriptions([mappedSaved, ...savedPrescriptions]);
       toast.success(`Prescription saved for ${selectedPatient.name}`);
       setIsPrescriptionOpen(false);
-      // Reset form
+      // Reset form dynamically using the first available doctor or our logged-in name
+      let initialDoc = '';
+      const activeDocs = users.filter((u: any) => u.role?.toUpperCase() === 'DOCTOR' || u.role?.toUpperCase() === 'SUPER_ADMIN' || u.role?.toUpperCase() === 'SURGEON');
+      if (currentUser?.role === 'DOCTOR' || currentUser?.role === 'SUPER_ADMIN') {
+        const foundSelf = activeDocs.find(d => d.name === currentUser.name);
+        if (foundSelf) initialDoc = foundSelf.name;
+      }
+      if (!initialDoc && activeDocs.length > 0) {
+        initialDoc = activeDocs[0].name;
+      }
       setPrescription({
-        doctor: 'Dr. Rajesh Sharma',
+        doctor: initialDoc || 'Duty Doctor',
         date: new Date().toISOString().split('T')[0],
         medicines: [{ name: '', dosage: '', frequency: '', duration: '' }],
         advice: '',
@@ -325,6 +334,32 @@ export default function OPD() {
     } else {
       toast.error('Failed to save prescription to database');
     }
+  };
+
+  const openPrescriptionModal = (patient: any) => {
+    setSelectedPatient(patient);
+    loadPatientHistory(patient.id);
+    
+    let initialDoc = '';
+    const activeDocs = users.filter((u: any) => u.role?.toUpperCase() === 'DOCTOR' || u.role?.toUpperCase() === 'SUPER_ADMIN' || u.role?.toUpperCase() === 'SURGEON');
+    if (currentUser?.role === 'DOCTOR' || currentUser?.role === 'SUPER_ADMIN') {
+      const foundSelf = activeDocs.find(d => d.name === currentUser.name);
+      if (foundSelf) initialDoc = foundSelf.name;
+    }
+    if (!initialDoc && activeDocs.length > 0) {
+      initialDoc = activeDocs[0].name;
+    }
+    
+    setPrescription({
+      doctor: initialDoc || 'Duty Doctor',
+      date: new Date().toISOString().split('T')[0],
+      medicines: [{ name: '', dosage: '', frequency: '', duration: '' }],
+      advice: '',
+      attachmentUrl: '',
+      attachmentName: ''
+    });
+    
+    setIsPrescriptionOpen(true);
   };
 
   const printPrescription = () => {
@@ -1593,8 +1628,9 @@ export default function OPD() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Doctors</SelectItem>
-                    <SelectItem value="d1">Dr. Rajesh Sharma</SelectItem>
-                    <SelectItem value="d2">Dr. Anjali Gupta</SelectItem>
+                    {users.filter(u => u.role?.toUpperCase() === 'DOCTOR' || u.role?.toUpperCase() === 'SUPER_ADMIN' || u.role?.toUpperCase() === 'SURGEON').map(doc => (
+                      <SelectItem key={doc.id} value={doc.name}>{doc.name}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -1654,9 +1690,7 @@ export default function OPD() {
                             size="sm" 
                             className="text-emerald-600 h-8 gap-1.5 whitespace-nowrap" 
                             onClick={() => {
-                              setSelectedPatient(patient);
-                              loadPatientHistory(patient.id);
-                              setIsPrescriptionOpen(true);
+                              openPrescriptionModal(patient);
                             }}
                           >
                             <FileText className="w-4 h-4" />
@@ -1737,6 +1771,12 @@ export default function OPD() {
                       }
                       return true; // Show all for 'appointments' tab
                     })
+                    .filter(apt => {
+                      if (selectedDoctorFilter !== 'all') {
+                        return (apt.doctor || apt.doctorName) === selectedDoctorFilter;
+                      }
+                      return true;
+                    })
                     .map((apt, i) => (
                       <TableRow key={apt.id} className="border-slate-50">
                         <TableCell className="font-bold text-medical-blue whitespace-nowrap">#{100 + i + 1}</TableCell>
@@ -1746,7 +1786,7 @@ export default function OPD() {
                           <p className="text-xs text-muted-foreground">MRN: {apt.patientMrn}</p>
                         </div>
                       </TableCell>
-                      <TableCell className="whitespace-nowrap">Dr. Rajesh Sharma</TableCell>
+                      <TableCell className="whitespace-nowrap">{apt.doctor || apt.doctorName || 'Duty Doctor'}</TableCell>
                       <TableCell className="whitespace-nowrap">
                         <div className="flex items-center gap-1 text-xs">
                           <Clock className="w-3 h-3 text-muted-foreground" />
@@ -1791,9 +1831,7 @@ export default function OPD() {
                             onClick={() => {
                               const patient = patients.find(p => p.id === apt.patientId);
                               if (patient) {
-                                setSelectedPatient(patient);
-                                loadPatientHistory(patient.id);
-                                setIsPrescriptionOpen(true);
+                                openPrescriptionModal(patient);
                               } else {
                                 toast.error('Patient record not found');
                               }
@@ -1890,11 +1928,12 @@ export default function OPD() {
                   <Label>Doctor</Label>
                   <Select value={prescription.doctor} onValueChange={(v) => setPrescription({...prescription, doctor: v})}>
                     <SelectTrigger>
-                      <SelectValue />
+                      <SelectValue placeholder="Select Doctor" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Dr. Rajesh Sharma">Dr. Rajesh Sharma</SelectItem>
-                      <SelectItem value="Dr. Anjali Gupta">Dr. Anjali Gupta</SelectItem>
+                      {users.filter(u => u.role?.toUpperCase() === 'DOCTOR' || u.role?.toUpperCase() === 'SUPER_ADMIN' || u.role?.toUpperCase() === 'SURGEON').map(doc => (
+                        <SelectItem key={doc.id} value={doc.name}>{doc.name}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>

@@ -551,7 +551,7 @@ export default function IPD() {
       medications,
       clinicalSummary,
       dischargeDate: new Date().toISOString(),
-      dischargeBy: currentUser?.name || 'Dr. Rajesh Sharma'
+      dischargeBy: currentUser?.name || 'Duty Doctor'
     };
 
     const savedSummary = await supabaseService.createDischargeSummary(summaryData);
@@ -767,7 +767,7 @@ export default function IPD() {
               <td class="label">Discharge Type</td>
               <td style="font-weight: 600; color: #b91c1c;">${summary.dischargeType || 'Routine / Improved'}</td>
               <td class="label">Attending Clinician</td>
-              <td>${summary.dischargeBy || 'Dr. Rajesh Sharma'}</td>
+              <td>${summary.dischargeBy || 'Duty Doctor'}</td>
             </tr>
           </table>
 
@@ -2740,7 +2740,7 @@ export default function IPD() {
                                 </Badge>
                               </div>
                               <p className="text-[10px] text-slate-500 mt-1">
-                                MRN: <span className="font-semibold text-slate-700">{pat ? pat.mrn : 'N/A'}</span> • Discharged By: <span className="font-semibold text-slate-700">{summary.dischargeBy || 'Dr. Rajesh Sharma'}</span>
+                                MRN: <span className="font-semibold text-slate-700">{pat ? pat.mrn : 'N/A'}</span> • Discharged By: <span className="font-semibold text-slate-700">{summary.dischargeBy || 'Duty Doctor'}</span>
                               </p>
                               {summary.clinicalSummary && (
                                 <p className="text-[10px] italic text-slate-500 bg-white/75 p-1.5 rounded border border-slate-100 mt-2 line-clamp-1">
@@ -2939,7 +2939,7 @@ export default function IPD() {
                                           Course: {summary.clinicalSummary || 'No summary notes entered.'}
                                         </p>
                                         <p className="text-[9px] text-slate-400 font-semibold mt-0.5">
-                                          Doctor: {summary.dischargeBy || 'Dr. Rajesh Sharma'}
+                                          Doctor: {summary.dischargeBy || 'Duty Doctor'}
                                         </p>
                                       </TableCell>
                                       
@@ -3315,7 +3315,7 @@ export default function IPD() {
                           </div>
                           <div>
                             <p className="text-sm font-bold">Complete Blood Count (CBC)</p>
-                            <p className="text-[10px] text-slate-500">Recommended by Dr. Rajesh Sharma</p>
+                            <p className="text-[10px] text-slate-500">Recommended by Attending Clinician</p>
                           </div>
                         </div>
                         <Badge className="bg-amber-50 text-amber-600 border-none">Pending</Badge>

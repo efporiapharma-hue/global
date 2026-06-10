@@ -132,7 +132,7 @@ export default function OPDPatientHistory({
                             {rx.date ? new Date(rx.date).toLocaleDateString() : 'N/A'}
                           </p>
                           <p className="text-[11px] font-black text-slate-800 truncate">
-                            {rx.doctor || rx.doctor_name || 'Dr. Rajesh Sharma'}
+                            {rx.doctor || rx.doctor_name || 'Duty Doctor'}
                           </p>
                         </div>
                         {onPrintPrescription && (

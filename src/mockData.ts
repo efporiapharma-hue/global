@@ -1,16 +1,7 @@
 import { Patient, Appointment, User, Bed, BillingRecord, LabTest, InventoryItem, OperationTheatre, OperationRecord, NursingTask, NurseShift, PatientVitals, Prescription } from './types';
 
 export const MOCK_USERS: User[] = [
-  { id: 'u1', name: 'Dr. Rajesh Sharma', email: 'doctor@hospital.com', role: 'DOCTOR', department: 'General Medicine', specialization: 'Internal Medicine', degree: 'MD, MBBS', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Rajesh' },
-  { id: 'u2', name: 'Dr. Anjali Gupta', email: 'admin@hospital.com', role: 'SUPER_ADMIN', department: 'Cardiology', specialization: 'Interventional Cardiology', degree: 'MD, DM (Cardiology)', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Anjali' },
-  { id: 'u3', name: 'Suresh Kumar', email: 'frontdesk@hospital.com', role: 'RECEPTION', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Suresh' },
-  { id: 'u4', name: 'Amit Singh', email: 'lab@hospital.com', role: 'LAB_STAFF', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Amit' },
-  { id: 'u5', name: 'Sister Mary', email: 'nurse@hospital.com', role: 'NURSE', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Mary' },
-  { id: 'u6', name: 'Rahul Varma', email: 'accounts@hospital.com', role: 'ACCOUNTANT', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Rahul' },
-  { id: 'u7', name: 'Priya Mehta', email: 'pharmacy@hospital.com', role: 'PHARMACIST', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Priya' },
-  { id: 'u8', name: 'Global Accounts', email: 'accounts', role: 'ACCOUNTANT', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Acc' },
-  { id: 'u9', name: 'Global Pharmacy', email: 'pharmacy', role: 'PHARMACIST', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Phar' },
-  { id: 'u10', name: 'Global Front Office', email: 'frontoffice', role: 'RECEPTION', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=FO' },
+  { id: 'u2', name: 'Admin', email: 'admin@hospital.com', role: 'SUPER_ADMIN', department: 'Cardiology', specialization: 'Interventional Cardiology', degree: 'MD, DM (Cardiology)', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Anjali' }
 ];
 
 export const MOCK_PATIENTS: Patient[] = [

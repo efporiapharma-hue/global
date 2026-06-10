@@ -27,7 +27,9 @@ import {
   Percent,
   Copy,
   Check,
-  Code
+  Code,
+  RefreshCw,
+  Cloud
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -42,7 +44,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toast } from 'sonner';
 import { MOCK_USERS, MOCK_PATIENTS, MOCK_BED_RATES, MOCK_OT_RATES, MOCK_LAB_TESTS, MOCK_MATERIAL_RATES } from '@/mockData';
 import { storage, STORAGE_KEYS } from '@/lib/storage';
-import { isSupabaseConfigured } from '@/lib/supabase';
+import { isSupabaseConfigured, supabase } from '@/lib/supabase';
 import { getPrescriptionPrintHtml } from '@/lib/prescriptionPrint';
 import { syncOfflineDataWithSupabase, getSupabaseUnreachable, setSupabaseUnreachable, supabaseService } from '@/services/supabaseService';
 import { DEFAULT_PHARMACY_SETTINGS } from '@/lib/pharmacyInvoicePrint';
@@ -293,6 +295,78 @@ export default function Settings({ currentUser, onUserUpdate }: { currentUser?: 
   const [dbUrl, setDbUrl] = useState(() => localStorage.getItem('hms_supabase_url') || '');
   const [dbKey, setDbKey] = useState(() => localStorage.getItem('hms_supabase_anon_key') || '');
   const [isDbSaving, setIsDbSaving] = useState(false);
+
+  // Database tables checking state
+  const [tableChecks, setTableChecks] = useState<Record<string, { status: 'idle' | 'checking' | 'connected' | 'error'; count?: number; errorMsg?: string }>>({
+    profiles: { status: 'idle' },
+    patients: { status: 'idle' },
+    appointments: { status: 'idle' },
+    prescriptions: { status: 'idle' },
+    patient_vitals: { status: 'idle' },
+    billing: { status: 'idle' },
+    departments: { status: 'idle' },
+    specialties: { status: 'idle' },
+    clinical_notes: { status: 'idle' },
+    admissions: { status: 'idle' },
+    ot_schedules: { status: 'idle' },
+    lab_test_orders: { status: 'idle' }
+  });
+
+  const [isVerifyingAll, setIsVerifyingAll] = useState(false);
+
+  const runSingleTableCheck = async (tableName: string) => {
+    if (!isSupabaseConfigured) {
+      return;
+    }
+    
+    setTableChecks(prev => ({
+      ...prev,
+      [tableName]: { status: 'checking' }
+    }));
+
+    try {
+      const { count, error } = await supabase
+        .from(tableName)
+        .select('*', { count: 'exact', head: true });
+
+      if (error) {
+        setTableChecks(prev => ({
+          ...prev,
+          [tableName]: { status: 'error', errorMsg: error.message }
+        }));
+        return;
+      }
+
+      setTableChecks(prev => ({
+        ...prev,
+        [tableName]: { status: 'connected', count: count || 0 }
+      }));
+    } catch (err: any) {
+      setTableChecks(prev => ({
+        ...prev,
+        [tableName]: { status: 'error', errorMsg: err?.message || 'Network or Permission Error' }
+      }));
+    }
+  };
+
+  const runAllTableChecks = async () => {
+    if (!isSupabaseConfigured) {
+      toast.error("Please connect your Supabase database first.");
+      return;
+    }
+    setIsVerifyingAll(true);
+    toast.loading("Verifying database schema health...", { id: 'db-verify-toast' });
+    
+    const tables = Object.keys(tableChecks);
+    for (const t of tables) {
+      // Create a slight delay so it feels organic
+      await new Promise(resolve => setTimeout(resolve, 50));
+      await runSingleTableCheck(t);
+    }
+    
+    toast.success("Database schema verification completed!", { id: 'db-verify-toast', duration: 4000 });
+    setIsVerifyingAll(false);
+  };
 
   // Offline Synchronization States & Logic
   const getOfflineCount = () => {
@@ -967,6 +1041,9 @@ export default function Settings({ currentUser, onUserUpdate }: { currentUser?: 
           {!isAccountant && <TabsTrigger value="templates" className="gap-2"><Layout className="w-4 h-4" /> Templates</TabsTrigger>}
           <TabsTrigger value="prescriptions" className="gap-2"><FileText className="w-4 h-4" /> Prescriptions</TabsTrigger>
           <TabsTrigger value="tax_slabs" className="gap-2"><Percent className="w-4 h-4" /> Tax Settings</TabsTrigger>
+          {!isAccountant && (
+            <TabsTrigger value="database" className="gap-2 bg-indigo-50/50 hover:bg-indigo-100 text-indigo-700 data-[state=active]:bg-indigo-600 data-[state=active]:text-white font-bold border border-indigo-100/50"><Database className="w-4 h-4" /> Database & Sync</TabsTrigger>
+          )}
           {currentUser?.role === 'SUPER_ADMIN' && (
             <TabsTrigger value="audit" className="gap-2"><History className="w-4 h-4" /> Audit Logs</TabsTrigger>
           )}
@@ -2431,6 +2508,236 @@ export default function Settings({ currentUser, onUserUpdate }: { currentUser?: 
             </CardContent>
           </Card>
         </TabsContent>
+
+        {/* Database & Sync Tab Content */}
+        {!isAccountant && (
+          <TabsContent value="database">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fade-in">
+              {/* Credentials Form */}
+              <div className="lg:col-span-1 space-y-6">
+                <Card className="border-none shadow-sm">
+                  <CardHeader>
+                    <CardTitle className="text-lg font-bold flex items-center gap-2">
+                      <Database className="w-5 h-5 text-indigo-600" />
+                      Database Credentials
+                    </CardTitle>
+                    <CardDescription>
+                      Connect your live production Supabase instance for real-time cloud data storage.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="db-url" className="text-xs font-bold text-slate-700 uppercase">
+                        Supabase Project URL
+                      </Label>
+                      <Input
+                        id="db-url"
+                        placeholder="https://your-project.supabase.co"
+                        value={dbUrl}
+                        onChange={(e) => setDbUrl(e.target.value)}
+                        className="bg-slate-50 border-slate-200"
+                      />
+                      <p className="text-[10px] text-slate-400 font-medium">
+                        Found in Supabase: Project Settings &gt; API &gt; Project URL
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="db-key" className="text-xs font-bold text-slate-700 uppercase">
+                        Supabase Anon Key
+                      </Label>
+                      <Input
+                        id="db-key"
+                        type="password"
+                        placeholder="eyJhbGciOi..."
+                        value={dbKey}
+                        onChange={(e) => setDbKey(e.target.value)}
+                        className="bg-slate-50 border-slate-200 font-mono text-xs pr-10"
+                      />
+                      <p className="text-[10px] text-slate-400 font-medium">
+                        Public API anon token key. Safe to store in local client cache.
+                      </p>
+                    </div>
+
+                    <div className="pt-4 flex flex-col gap-2">
+                      <Button
+                        className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold gap-2"
+                        onClick={handleSaveDatabaseCredentials}
+                        disabled={isDbSaving}
+                      >
+                        <Check className="w-4 h-4" />
+                        {isDbSaving ? "Connecting..." : "Save & Connect Cloud"}
+                      </Button>
+                      
+                      {isSupabaseConfigured && (
+                        <Button
+                          variant="outline"
+                          type="button"
+                          className="w-full text-slate-600 border-slate-200 hover:bg-slate-50 hover:text-slate-900 font-bold gap-2"
+                          onClick={handleResetDatabaseCredentials}
+                        >
+                          <Database className="w-4 h-4 text-slate-400" />
+                          Disconnect (Local Only)
+                        </Button>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="border-none shadow-sm bg-gradient-to-br from-indigo-900 to-slate-900 text-white border-l-4 border-indigo-500">
+                  <CardHeader>
+                    <CardTitle className="text-base font-bold flex items-center gap-2">
+                      <RefreshCw className="w-5 h-5 text-indigo-400" />
+                      Offline Replication
+                    </CardTitle>
+                    <CardDescription className="text-indigo-200/80">
+                      The application synchronizes local offline queue transactions directly with your cloud repository.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="p-3 bg-white/10 rounded-xl flex items-center justify-between border border-white/10">
+                      <div>
+                        <p className="text-[10px] uppercase font-bold text-indigo-300">Offline Cache State</p>
+                        <p className="text-xl font-bold mt-0.5">{offlineCount} records pending</p>
+                      </div>
+                      <div className="w-2.5 h-2.5 bg-yellow-400 rounded-full animate-pulse" />
+                    </div>
+
+                    <div className="p-3 bg-white/10 rounded-xl flex items-center justify-between border border-white/10">
+                      <div>
+                        <p className="text-[10px] uppercase font-bold text-indigo-300">Supabase Channel</p>
+                        <p className="text-xs font-bold mt-0.5">
+                          {isSupabaseConfigured ? (isFallbackActive ? "🔴 Cloud Unreachable" : "🟢 Connected Live") : "⚪️ Passive Local"}
+                        </p>
+                      </div>
+                    </div>
+
+                    {isSupabaseConfigured && (
+                      <Button
+                        type="button"
+                        className="w-full bg-white text-indigo-950 hover:bg-slate-100 font-black gap-2 mt-2"
+                        onClick={handleSyncData}
+                        disabled={isSyncing}
+                      >
+                        <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
+                        {isSyncing ? "Uploading Cache..." : "Force Sync With Cloud"}
+                      </Button>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Schema Health / Checker Tab */}
+              <div className="lg:col-span-2 space-y-6">
+                <Card className="border-none shadow-sm">
+                  <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2">
+                    <div>
+                      <CardTitle className="text-lg font-bold flex items-center gap-2">
+                        <Activity className="w-5 h-5 text-emerald-500" />
+                        Database Integrity Check (Supabase Tables)
+                      </CardTitle>
+                      <CardDescription>
+                        Run validation audits to verify if all required relational tables exist on your connected Supabase.
+                      </CardDescription>
+                    </div>
+                    {isSupabaseConfigured && (
+                      <Button
+                        type="button"
+                        onClick={runAllTableChecks}
+                        disabled={isVerifyingAll}
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold gap-1.5 shrink-0"
+                      >
+                        <Activity className={`w-4 h-4 ${isVerifyingAll ? 'animate-spin' : ''}`} />
+                        {isVerifyingAll ? "Testing Tables..." : "Check Tables Connect"}
+                      </Button>
+                    )}
+                  </CardHeader>
+                  <CardContent>
+                    {!isSupabaseConfigured ? (
+                      <div className="py-12 flex flex-col items-center justify-center text-center space-y-4 rounded-xl border border-dashed border-slate-200 bg-slate-50/50">
+                        <Database className="w-12 h-12 text-slate-300" />
+                        <div className="max-w-md px-4">
+                          <p className="text-sm font-bold text-slate-700">Database Connection Inactive</p>
+                          <p className="text-xs text-slate-500 mt-1">
+                            Connect your live Supabase cloud workspace to see physical table integrity results. Local-only sandbox is fully operational.
+                          </p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          {Object.entries(tableChecks).map(([tableName, val]) => {
+                            const data = val as { status: 'idle' | 'checking' | 'connected' | 'error'; count?: number; errorMsg?: string };
+                            return (
+                              <div
+                                key={tableName}
+                                className="p-3.5 rounded-xl border border-slate-100 bg-slate-50/55 flex items-center justify-between gap-3 shadow-xs hover:border-slate-200 transition"
+                              >
+                                <div className="truncate">
+                                  <p className="text-xs font-bold text-slate-700 font-mono truncate">{tableName}</p>
+                                  <p className="text-[10px] text-slate-400 mt-0.5 truncate">
+                                    {data.status === 'idle' && "Not tested yet."}
+                                    {data.status === 'checking' && "Running ping query..."}
+                                    {data.status === 'connected' && `Secured connection (${data.count} records)`}
+                                    {data.status === 'error' && `Error: ${data.errorMsg}`}
+                                  </p>
+                                </div>
+                                <div className="shrink-0">
+                                  {data.status === 'idle' && (
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      type="button"
+                                      onClick={() => runSingleTableCheck(tableName)}
+                                      className="h-7 text-[10px] font-bold text-indigo-600 bg-indigo-50/50 hover:bg-indigo-150 px-2 rounded-lg"
+                                    >
+                                      Test Table
+                                    </Button>
+                                  )}
+                                  {data.status === 'checking' && (
+                                    <RefreshCw className="w-4 h-4 text-amber-500 animate-spin mr-2" />
+                                  )}
+                                  {data.status === 'connected' && (
+                                    <span className="inline-flex items-center gap-1.5 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-100">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                      CONNECTED
+                                    </span>
+                                  )}
+                                  {data.status === 'error' && (
+                                    <span
+                                      title={data.errorMsg}
+                                      className="cursor-help inline-flex items-center gap-1.5 text-[10px] font-bold text-rose-600 bg-rose-50 px-2.5 py-1 rounded-full border border-rose-100"
+                                    >
+                                      <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                                      FAILED
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 text-white space-y-2 mt-4">
+                          <h4 className="text-xs font-black text-amber-400 uppercase tracking-wide flex items-center gap-1.5">
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping" />
+                            How to handle "FAILED" results:
+                          </h4>
+                          <p className="text-[11px] leading-relaxed text-slate-300">
+                            If any tables show a <strong>FAILED</strong> status or return <strong>relation public.xxx does not exist</strong>, this indicates that the table schema has not yet been copied to your live Supabase database.
+                          </p>
+                          <p className="text-[11px] leading-relaxed text-slate-300">
+                            <strong>To fix this instantly:</strong> Scroll to the <strong>SQL Editor code box below</strong>, select all code in the script text sheet, open <strong>SQL Editor</strong> in your Supabase dashboard, paste, and hit <strong>RUN</strong>!
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   );

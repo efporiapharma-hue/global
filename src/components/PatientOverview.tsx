@@ -303,7 +303,7 @@ export default function PatientOverview({ userRole }: { userRole?: string }) {
 *Patient Overview: ${selectedPatient.name}*
 *MRN:* ${selectedPatient.mrn || 'N/A'}
 *Age/Gender:* ${selectedPatient.age}Y / ${selectedPatient.gender}
-*Attending Doctor:* ${doctor?.name || 'Dr. Rajesh Sharma'}
+*Attending Doctor:* ${doctor?.name || 'Duty Doctor'}
 *Status:* ${selectedPatient.status}
 *Current Dues:* ${formatCurrency(calculateDues(selectedPatient.id))}
 *Insurance Status:* ${claim?.status || 'N/A'}
@@ -783,10 +783,10 @@ View full details at: ${shareUrl}
                   </div>
                   <div>
                     <p className="text-sm font-bold">
-                      {staff.find(u => u.id === selectedPatient.attending_doctor_id)?.name || 'Dr. Rajesh Sharma'}
+                      {staff.find(u => u.id === selectedPatient.attending_doctor_id)?.name || 'Duty Doctor'}
                     </p>
                     <p className="text-[10px] text-slate-500">
-                      {staff.find(u => u.id === selectedPatient.attending_doctor_id)?.department || 'General Medicine'}
+                      {staff.find(u => u.id === selectedPatient.attending_doctor_id)?.department || 'General Consultation'}
                     </p>
                   </div>
                 </div>
