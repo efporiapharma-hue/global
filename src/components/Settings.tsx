@@ -292,8 +292,19 @@ export default function Settings({ currentUser, onUserUpdate }: { currentUser?: 
   };
 
   // Supabase states
-  const [dbUrl, setDbUrl] = useState(() => localStorage.getItem('hms_supabase_url') || '');
-  const [dbKey, setDbKey] = useState(() => localStorage.getItem('hms_supabase_anon_key') || '');
+  const getCleanedStateItem = (key: string): string => {
+    if (typeof window === 'undefined') return '';
+    const val = localStorage.getItem(key);
+    if (!val || typeof val !== 'string') return '';
+    const trimmed = val.trim();
+    if (trimmed === '' || trimmed === 'null' || trimmed === 'undefined' || trimmed.includes('placeholder') || trimmed === 'placeholder-key') {
+      return '';
+    }
+    return trimmed;
+  };
+
+  const [dbUrl, setDbUrl] = useState(() => getCleanedStateItem('hms_supabase_url') || import.meta.env.VITE_SUPABASE_URL || 'https://nlyfngpitxuqtczeqjaw.supabase.co');
+  const [dbKey, setDbKey] = useState(() => getCleanedStateItem('hms_supabase_anon_key') || import.meta.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_q0e5J5_yWRYl_KHS7U6HhA_zbTpGZdC');
   const [isDbSaving, setIsDbSaving] = useState(false);
 
   // Database tables checking state

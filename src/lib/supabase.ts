@@ -1,7 +1,18 @@
 import { createClient } from '@supabase/supabase-js';
 
-const rawSupabaseUrl = localStorage.getItem('hms_supabase_url') || import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = localStorage.getItem('hms_supabase_anon_key') || import.meta.env.VITE_SUPABASE_ANON_KEY;
+const getCleanStorageItem = (key: string): string | null => {
+  if (typeof window === 'undefined') return null;
+  const val = localStorage.getItem(key);
+  if (!val || typeof val !== 'string') return null;
+  const trimmed = val.trim();
+  if (trimmed === '' || trimmed === 'null' || trimmed === 'undefined' || trimmed.includes('placeholder') || trimmed === 'placeholder-key') {
+    return null;
+  }
+  return trimmed;
+};
+
+const rawSupabaseUrl = getCleanStorageItem('hms_supabase_url') || import.meta.env.VITE_SUPABASE_URL || 'https://nlyfngpitxuqtczeqjaw.supabase.co';
+const supabaseAnonKey = getCleanStorageItem('hms_supabase_anon_key') || import.meta.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_q0e5J5_yWRYl_KHS7U6HhA_zbTpGZdC';
 
 const isValidUrl = (url: any): boolean => {
   if (!url || typeof url !== 'string') return false;

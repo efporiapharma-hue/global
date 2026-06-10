@@ -9,12 +9,24 @@ export function isLiveEnvironment(): boolean {
 
 function isSupabaseConfig(): boolean {
   try {
-    const rawSupabaseUrl = localStorage.getItem('hms_supabase_url');
-    const supabaseAnonKey = localStorage.getItem('hms_supabase_anon_key');
-    if (rawSupabaseUrl && supabaseAnonKey && 
-        rawSupabaseUrl.startsWith('https://') && 
-        rawSupabaseUrl !== 'https://placeholder.supabase.co' && 
-        !rawSupabaseUrl.includes('placeholder')) {
+    const getCleanItem = (key: string): string | null => {
+      if (typeof window === 'undefined') return null;
+      const val = localStorage.getItem(key);
+      if (!val || typeof val !== 'string') return null;
+      const trimmed = val.trim();
+      if (trimmed === '' || trimmed === 'null' || trimmed === 'undefined' || trimmed.includes('placeholder') || trimmed === 'placeholder-key') {
+        return null;
+      }
+      return trimmed;
+    };
+
+    const url = getCleanItem('hms_supabase_url') || import.meta.env.VITE_SUPABASE_URL || 'https://nlyfngpitxuqtczeqjaw.supabase.co';
+    const key = getCleanItem('hms_supabase_anon_key') || import.meta.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_q0e5J5_yWRYl_KHS7U6HhA_zbTpGZdC';
+
+    if (url && key && 
+        url.startsWith('https://') && 
+        url !== 'https://placeholder.supabase.co' && 
+        !url.includes('placeholder')) {
       return true;
     }
   } catch (e) {}
