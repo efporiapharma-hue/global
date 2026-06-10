@@ -11,8 +11,17 @@ const getCleanStorageItem = (key: string): string | null => {
   return trimmed;
 };
 
-const rawSupabaseUrl = getCleanStorageItem('hms_supabase_url') || import.meta.env.VITE_SUPABASE_URL || 'https://nlyfngpitxuqtczeqjaw.supabase.co';
-const supabaseAnonKey = getCleanStorageItem('hms_supabase_anon_key') || import.meta.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_q0e5J5_yWRYl_KHS7U6HhA_zbTpGZdC';
+const cleanValue = (val: any): string | null => {
+  if (!val || typeof val !== 'string') return null;
+  const trimmed = val.trim();
+  if (trimmed === '' || trimmed === 'null' || trimmed === 'undefined' || trimmed.includes('placeholder') || trimmed === 'placeholder-key') {
+    return null;
+  }
+  return trimmed;
+};
+
+const rawSupabaseUrl = getCleanStorageItem('hms_supabase_url') || cleanValue(import.meta.env.VITE_SUPABASE_URL) || 'https://nlyfngpitxuqtczeqjaw.supabase.co';
+const supabaseAnonKey = getCleanStorageItem('hms_supabase_anon_key') || cleanValue(import.meta.env.VITE_SUPABASE_ANON_KEY) || 'sb_publishable_q0e5J5_yWRYl_KHS7U6HhA_zbTpGZdC';
 
 const isValidUrl = (url: any): boolean => {
   if (!url || typeof url !== 'string') return false;

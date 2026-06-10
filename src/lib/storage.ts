@@ -20,8 +20,17 @@ function isSupabaseConfig(): boolean {
       return trimmed;
     };
 
-    const url = getCleanItem('hms_supabase_url') || import.meta.env.VITE_SUPABASE_URL || 'https://nlyfngpitxuqtczeqjaw.supabase.co';
-    const key = getCleanItem('hms_supabase_anon_key') || import.meta.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_q0e5J5_yWRYl_KHS7U6HhA_zbTpGZdC';
+    const cleanEnvVal = (val: any): string | null => {
+      if (!val || typeof val !== 'string') return null;
+      const trimmed = val.trim();
+      if (trimmed === '' || trimmed === 'null' || trimmed === 'undefined' || trimmed.includes('placeholder') || trimmed === 'placeholder-key') {
+        return null;
+      }
+      return trimmed;
+    };
+
+    const url = getCleanItem('hms_supabase_url') || cleanEnvVal(import.meta.env.VITE_SUPABASE_URL) || 'https://nlyfngpitxuqtczeqjaw.supabase.co';
+    const key = getCleanItem('hms_supabase_anon_key') || cleanEnvVal(import.meta.env.VITE_SUPABASE_ANON_KEY) || 'sb_publishable_q0e5J5_yWRYl_KHS7U6HhA_zbTpGZdC';
 
     if (url && key && 
         url.startsWith('https://') && 
