@@ -63,7 +63,6 @@ import { toast } from 'sonner';
 import LISTestMasters from './lis/LISTestMasters';
 import LISResultEntry from './lis/LISResultEntry';
 import LISReportDesigner from './lis/LISReportDesigner';
-import LISDatabaseArchitect from './lis/LISDatabaseArchitect';
 import LISAdvancedModules from './lis/LISAdvancedModules';
 
 function LabQuickRegisterForm({ onRegistered }: { onRegistered: () => void }) {
@@ -163,7 +162,7 @@ function LabQuickRegisterForm({ onRegistered }: { onRegistered: () => void }) {
 
 export default function Lab() {
   const [activeTab, setActiveTab] = useState<'pathology' | 'radiology' | 'external'>('pathology');
-  const [pathologyMode, setPathologyMode] = useState<'standard' | 'masters' | 'workbench' | 'reports' | 'advanced' | 'schema'>('standard');
+  const [pathologyMode, setPathologyMode] = useState<'standard' | 'masters' | 'workbench' | 'reports' | 'advanced'>('standard');
   const [mainTab, setMainTab] = useState<'orders' | 'billing' | 'appointments' | 'setup'>('orders');
   const [loading, setLoading] = useState(true);
   const [patients, setPatients] = useState<any[]>([]);
@@ -1235,14 +1234,6 @@ export default function Lab() {
                 >
                   Advanced Ops & Logistics
                 </Button>
-                <Button 
-                  variant={pathologyMode === 'schema' ? 'secondary' : 'ghost'} 
-                  size="sm" 
-                  onClick={() => setPathologyMode('schema')}
-                  className={`text-xs font-bold leading-none h-8 px-3 rounded-lg ${pathologyMode === 'schema' ? 'bg-white text-indigo-950 shadow-sm' : 'text-slate-600'}`}
-                >
-                  MySQL Database
-                </Button>
               </div>
             )}
           </div>
@@ -1251,7 +1242,6 @@ export default function Lab() {
           {activeTab === 'pathology' && pathologyMode === 'workbench' && <LISResultEntry onRelease={fetchData} />}
           {activeTab === 'pathology' && pathologyMode === 'reports' && <LISReportDesigner />}
           {activeTab === 'pathology' && pathologyMode === 'advanced' && <LISAdvancedModules />}
-          {activeTab === 'pathology' && pathologyMode === 'schema' && <LISDatabaseArchitect />}
 
           {((activeTab === 'pathology' && pathologyMode === 'standard') || activeTab === 'radiology' || activeTab === 'external') && (
             <>
