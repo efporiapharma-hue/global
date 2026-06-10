@@ -1,12 +1,89 @@
 
+export function isLiveEnvironment(): boolean {
+  if (typeof window === 'undefined') return false;
+  const hostname = window.location.hostname;
+  if (!hostname || hostname === 'localhost' || hostname === '127.0.0.1') return false;
+  if (hostname.includes('ais-dev') || hostname.includes('ais-pre')) return false;
+  return true;
+}
+
+function isSupabaseConfig(): boolean {
+  try {
+    const rawSupabaseUrl = localStorage.getItem('hms_supabase_url');
+    const supabaseAnonKey = localStorage.getItem('hms_supabase_anon_key');
+    if (rawSupabaseUrl && supabaseAnonKey && 
+        rawSupabaseUrl.startsWith('https://') && 
+        rawSupabaseUrl !== 'https://placeholder.supabase.co' && 
+        !rawSupabaseUrl.includes('placeholder')) {
+      return true;
+    }
+  } catch (e) {}
+  return false;
+}
+
+function isMockId(id: any): boolean {
+  if (!id || typeof id !== 'string') return false;
+  return /^(p|a|bill|i|rx|ot|op|ns|nt)\d+$/.test(id);
+}
+
+function sanitizeStorageValue(key: string, val: any): any {
+  if (!val) return val;
+  
+  if (!(isLiveEnvironment() || isSupabaseConfig())) {
+    return val;
+  }
+  
+  // Clean beds association
+  if (key === 'hms_beds' && Array.isArray(val)) {
+    return val.map((bed: any) => ({
+      ...bed,
+      status: 'Available',
+      patientId: undefined,
+      patient_id: undefined
+    }));
+  }
+
+  // Clean OT Room associations
+  if (key === 'hms_ot_rooms' && Array.isArray(val)) {
+    return val.map((room: any) => ({
+      ...room,
+      status: 'Available'
+    }));
+  }
+  
+  // Under live or configured Supabase, strip mock transaction/patient items
+  if (Array.isArray(val)) {
+    return val.filter((item: any) => {
+      if (!item) return false;
+      if (item.id && isMockId(item.id)) return false;
+      if (item.cat_id && isMockId(item.cat_id)) return false;
+      if (item.subcat_id && isMockId(item.subcat_id)) return false;
+      if (item.unit_id && isMockId(item.unit_id)) return false;
+      if (item.patientId && isMockId(item.patientId)) return false;
+      if (item.patient_id && isMockId(item.patient_id)) return false;
+      if (item.pat_id && isMockId(item.pat_id)) return false;
+      return true;
+    });
+  }
+  
+  if (typeof val === 'object') {
+    if (val.id && isMockId(val.id)) return null;
+    if (val.patientId && isMockId(val.patientId)) return null;
+    if (val.patient_id && isMockId(val.patient_id)) return null;
+  }
+  
+  return val;
+}
+
 export const storage = {
   get: <T>(key: string, defaultValue: T): T => {
     try {
       const item = localStorage.getItem(key);
-      return item ? JSON.parse(item) : defaultValue;
+      const parsed = item ? JSON.parse(item) : defaultValue;
+      return sanitizeStorageValue(key, parsed) as T;
     } catch (error) {
       console.error(`Error reading storage key "${key}":`, error);
-      return defaultValue;
+      return sanitizeStorageValue(key, defaultValue) as T;
     }
   },
   set: <T>(key: string, value: T): void => {
