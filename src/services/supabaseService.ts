@@ -1221,6 +1221,27 @@ const rawSupabaseService = {
   },
 
   // Staff / Profiles
+  decodeStaffPassword: (staffMember: any) => {
+    if (!staffMember) return staffMember;
+    const match = staffMember.degree?.match(/\[pwd:(.*?)\]/);
+    if (match) {
+      staffMember.password = match[1];
+      staffMember.degree = staffMember.degree.replace(/\[pwd:(.*?)\]/, '').trim();
+    }
+    return staffMember;
+  },
+
+  encodeStaffPassword: (staffMember: any) => {
+    if (!staffMember) return staffMember;
+    const dbStaff = { ...staffMember };
+    if (dbStaff.password) {
+      const cleanDegree = (dbStaff.degree || '').replace(/\[pwd:(.*?)\]/, '').trim();
+      dbStaff.degree = `${cleanDegree} [pwd:${dbStaff.password}]`.trim();
+      delete dbStaff.password;
+    }
+    return dbStaff;
+  },
+
   getStaff: async () => {
     try {
       const { data, error } = await supabase
@@ -1228,6 +1249,22 @@ const rawSupabaseService = {
         .select('*')
         .order('name', { ascending: true });
       
+      const decodeHelper = (list: any[]) => {
+        return list.map((p: any) => {
+          const item = {
+            ...p,
+            avatar: p.avatar_url || p.avatar
+          };
+          // Decode password
+          const match = item.degree?.match(/\[pwd:(.*?)\]/);
+          if (match) {
+            item.password = match[1];
+            item.degree = item.degree.replace(/\[pwd:(.*?)\]/, '').trim();
+          }
+          return item;
+        });
+      };
+
       if (error) {
         if (error.code === 'PGRST116' || error.message?.toLowerCase().includes('does not exist')) {
           // Fallback to profiles table
@@ -1236,19 +1273,13 @@ const rawSupabaseService = {
             .select('*')
             .order('name', { ascending: true });
           if (pError) throw pError;
-          const mapped = (pData || []).map((p: any) => ({
-            ...p,
-            avatar: p.avatar_url || p.avatar
-          }));
+          const mapped = decodeHelper(pData || []);
           storage.set(STORAGE_KEYS.USERS, mapped);
           return mapped;
         }
         throw error;
       }
-      const mapped = (data || []).map((p: any) => ({
-        ...p,
-        avatar: p.avatar_url || p.avatar
-      }));
+      const mapped = decodeHelper(data || []);
       storage.set(STORAGE_KEYS.USERS, mapped);
       return mapped;
     } catch (error: any) {
@@ -1259,7 +1290,8 @@ const rawSupabaseService = {
 
   createStaff: async (profile: any) => {
     try {
-      const dbProfile = { ...profile };
+      const encodedProfile = rawSupabaseService.encodeStaffPassword(profile);
+      const dbProfile = { ...encodedProfile };
       if ('avatar' in dbProfile) {
         dbProfile.avatar_url = dbProfile.avatar;
         delete dbProfile.avatar;
@@ -1305,10 +1337,12 @@ const rawSupabaseService = {
         created = data[0];
       }
       
-      const result = {
+      const rawResult = {
         ...created,
         avatar: created.avatar_url || created.avatar
       };
+      
+      const result = rawSupabaseService.decodeStaffPassword(rawResult);
 
       // Sync to local storage
       const existing = storage.get(STORAGE_KEYS.USERS, MOCK_USERS);
@@ -1333,7 +1367,8 @@ const rawSupabaseService = {
 
   updateStaff: async (id: string, updates: any) => {
     try {
-      const dbUpdates = { ...updates };
+      const encodedUpdates = rawSupabaseService.encodeStaffPassword(updates);
+      const dbUpdates = { ...encodedUpdates };
       if ('avatar' in dbUpdates) {
         dbUpdates.avatar_url = dbUpdates.avatar;
         delete dbUpdates.avatar;
@@ -1375,10 +1410,12 @@ const rawSupabaseService = {
         updated = data[0];
       }
       
-      const result = {
+      const rawResult = {
         ...updated,
         avatar: updated.avatar_url || updated.avatar
       };
+      
+      const result = rawSupabaseService.decodeStaffPassword(rawResult);
 
       // Sync to local storage
       const existing = storage.get(STORAGE_KEYS.USERS, MOCK_USERS);

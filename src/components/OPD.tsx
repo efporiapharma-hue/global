@@ -889,6 +889,36 @@ export default function OPD() {
     const success = await supabaseService.updateAppointment(id, { payment_status: 'Paid' });
     if (success) {
       setAppointments(appointments.map(a => a.id === id ? { ...a, payment_status: 'Paid' } : a));
+      
+      try {
+        // Find the patient associated with this appointment to sync invoice status
+        const apt = appointments.find(a => a.id === id);
+        if (apt) {
+          const patientId = apt.patientId || apt.patient_id;
+          if (patientId) {
+            const invoices = await supabaseService.getInvoices();
+            if (invoices && invoices.length > 0) {
+              const pendingOPDInvoices = invoices.filter((inv: any) => {
+                const isMatchPatient = (inv.patient_id === patientId || inv.patientId === patientId);
+                const isUnpaid = inv.status?.toLowerCase() === 'unpaid';
+                const isOPD = inv.type === 'OPD';
+                return isMatchPatient && isUnpaid && isOPD;
+              });
+
+              for (const inv of pendingOPDInvoices) {
+                await supabaseService.updateInvoice(
+                  inv.id, 
+                  { ...inv, status: 'Paid', paid_amount: inv.total_amount }, 
+                  inv.invoice_items || []
+                );
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Error syncing invoice payment:', err);
+      }
+
       toast.success('Consultation fee collected successfully');
     } else {
       toast.error('Failed to update payment status');

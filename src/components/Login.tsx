@@ -38,6 +38,7 @@ export default function Login({ onLogin }: LoginProps) {
     // List of credentials for the user to refer to if needed (though typically they know them)
     // We'll just check against our mock users
     const validUsers = [
+      { email: 'admingh', pass: 'GH@12345' },
       { email: 'admin@hospital.com', pass: 'admin123' },
       { email: 'doctor@hospital.com', pass: 'doctor123' },
       { email: 'lab@hospital.com', pass: 'lab123' },
@@ -51,6 +52,7 @@ export default function Login({ onLogin }: LoginProps) {
     ];
 
     const fallbackUserProfiles: Record<string, any> = {
+      'admingh': { id: 'u-admingh', name: 'Admin GH', email: 'admingh', role: 'SUPER_ADMIN', department: 'Administration', specialization: 'Hospital Administration', degree: 'MBA (HA)', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=AdminGH' },
       'admin@hospital.com': { id: 'u-admin', name: 'Admin', email: 'admin@hospital.com', role: 'SUPER_ADMIN', department: 'Cardiology', specialization: 'Interventional Cardiology', degree: 'MD, DM (Cardiology)', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Anjali' },
       'doctor@hospital.com': { id: 'u-doctor', name: 'Dr. Rajesh Sharma', email: 'doctor@hospital.com', role: 'DOCTOR', department: 'General Medicine', specialization: 'General Medicine', degree: 'MBBS, MD', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Rajesh' },
       'lab@hospital.com': { id: 'u-lab', name: 'Lab Technician', email: 'lab@hospital.com', role: 'LAB_STAFF', department: 'Pathology', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Lab' },
@@ -77,7 +79,7 @@ export default function Login({ onLogin }: LoginProps) {
         if (hardcodedAuth) {
           userDetails.password = hardcodedAuth.pass;
         } else {
-          if (password === 'hospital123' || password === 'global123' || password === 'admin123' || password === 'doctor123' || password === 'lab123' || password === 'nurse123' || password === 'front123' || password === 'accounts123' || password === 'pharmacy123') {
+          if (password === 'hospital123' || password === 'global123' || password === 'admin123' || password === 'doctor123' || password === 'lab123' || password === 'nurse123' || password === 'front123' || password === 'accounts123' || password === 'pharmacy123' || password === 'GH@12345') {
             userDetails.password = password;
           }
         }
@@ -92,8 +94,8 @@ export default function Login({ onLogin }: LoginProps) {
       } else if (userDetails && (password === 'hospital123' || password === 'global123')) {
         toast.success(`Login successful! Welcome ${userDetails.name}`);
         onLogin(userDetails);
-      } else if (username === 'admin' && password === '12345') {
-        const adminUser = currentUsers.find(u => u.role === 'SUPER_ADMIN') || (MOCK_USERS.find(u => u.role === 'SUPER_ADMIN') as any);
+      } else if ((username === 'admin' && password === '12345') || (username.toLowerCase() === 'admingh' && password === 'GH@12345')) {
+        const adminUser = currentUsers.find(u => u.role === 'SUPER_ADMIN') || fallbackUserProfiles['admingh'] || (MOCK_USERS.find(u => u.role === 'SUPER_ADMIN') as any);
         toast.success('Login successful! Welcome Admin');
         onLogin(adminUser);
       } else {
@@ -112,7 +114,7 @@ export default function Login({ onLogin }: LoginProps) {
         if (hardcodedAuth) {
           userDetails.password = hardcodedAuth.pass;
         } else {
-          if (password === 'hospital123' || password === 'global123' || password === 'admin123' || password === 'doctor123' || password === 'lab123' || password === 'nurse123' || password === 'front123' || password === 'accounts123' || password === 'pharmacy123') {
+          if (password === 'hospital123' || password === 'global123' || password === 'admin123' || password === 'doctor123' || password === 'lab123' || password === 'nurse123' || password === 'front123' || password === 'accounts123' || password === 'pharmacy123' || password === 'GH@12345') {
             userDetails.password = password;
           }
         }
@@ -127,8 +129,8 @@ export default function Login({ onLogin }: LoginProps) {
       } else if (userDetails && (password === 'hospital123' || password === 'global123')) {
         toast.success(`Login successful! Welcome ${userDetails.name}`);
         onLogin(userDetails);
-      } else if (username === 'admin' && password === '12345') {
-        const adminUser = currentUsers.find(u => u.role === 'SUPER_ADMIN') || (MOCK_USERS.find(u => u.role === 'SUPER_ADMIN') as any);
+      } else if ((username === 'admin' && password === '12345') || (username.toLowerCase() === 'admingh' && password === 'GH@12345')) {
+        const adminUser = currentUsers.find(u => u.role === 'SUPER_ADMIN') || fallbackUserProfiles['admingh'] || (MOCK_USERS.find(u => u.role === 'SUPER_ADMIN') as any);
         toast.success('Login successful! Welcome Admin');
         onLogin(adminUser);
       } else {
@@ -247,37 +249,6 @@ export default function Login({ onLogin }: LoginProps) {
                     </div>
                   ) : "Login"}
                 </Button>
-
-                <div className="mt-6 p-4 bg-slate-50 border border-slate-100 rounded-xl">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Quick Login (Demo Credentials)</p>
-                  <div className="grid grid-cols-2 gap-2">
-                    {[
-                      { role: 'Admin', email: 'admin@hospital.com', pass: 'admin123' },
-                      { role: 'Doctor', email: 'doctor@hospital.com', pass: 'doctor123' },
-                      { role: 'Accountant', email: 'accounts@hospital.com', pass: 'accounts123' },
-                      { role: 'Front Desk', email: 'frontdesk@hospital.com', pass: 'front123' },
-                      { role: 'Nurse', email: 'nurse@hospital.com', pass: 'nurse123' },
-                      { role: 'Lab', email: 'lab@hospital.com', pass: 'lab123' },
-                      { role: 'Pharmacy', email: 'pharmacy@hospital.com', pass: 'pharmacy123' },
-                      { role: 'Accounts (Global)', email: 'accounts', pass: 'global123' },
-                      { role: 'Pharmacy (Global)', email: 'pharmacy', pass: 'global123' },
-                      { role: 'Front Office (Global)', email: 'frontoffice', pass: 'global123' },
-                    ].map((cred, idx) => (
-                      <button 
-                        key={idx}
-                        type="button"
-                        onClick={() => {
-                          setUsername(cred.email);
-                          setPassword(cred.pass);
-                        }}
-                        className="text-left p-2 rounded-lg hover:bg-white hover:shadow-sm border border-transparent hover:border-slate-200 transition-all group"
-                      >
-                        <p className="text-[10px] font-bold text-medical-blue leading-none">{cred.role}</p>
-                        <p className="text-[9px] text-slate-400 truncate">{cred.email}</p>
-                      </button>
-                    ))}
-                  </div>
-                </div>
               </form>
 
               <p className="mt-12 text-center text-[10px] text-slate-400 font-medium">

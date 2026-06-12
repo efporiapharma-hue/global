@@ -192,6 +192,8 @@ CREATE TABLE IF NOT EXISTS public.pharmacy_items (
 export default function Settings({ currentUser, onUserUpdate }: { currentUser?: any, onUserUpdate?: (user: any) => void }) {
   const [templateImage, setTemplateImage] = useState<string | null>(() => storage.get(STORAGE_KEYS.TEMPLATE_IMAGE, null));
   const isAccountant = currentUser?.role === 'ACCOUNTANT';
+  const isAdmin = currentUser?.role === 'SUPER_ADMIN' || currentUser?.role === 'ADMIN' || currentUser?.role?.toUpperCase().includes('ADMIN') || (currentUser?.email && currentUser.email.toLowerCase().includes('admin'));
+  const isFrontOffice = currentUser?.role === 'RECEPTION' || currentUser?.role === 'RECEPTIONIST' || currentUser?.role === 'FRONT_DESK' || (currentUser?.email && (currentUser.email.toLowerCase().includes('frontoffice') || currentUser.email.toLowerCase().includes('frontdesk')));
 
   // Supabase SQL Editor State
   const [sqlTab, setSqlTab] = useState<'all' | 'tax_slabs' | 'billing' | 'pharmacy'>('all');
@@ -514,7 +516,8 @@ export default function Settings({ currentUser, onUserUpdate }: { currentUser?: 
   const [profileData, setProfileData] = useState({
     name: currentUser?.name || '',
     email: currentUser?.email || '',
-    phone: currentUser?.phone || '+91 98765 43210'
+    phone: currentUser?.phone || '+91 98765 43210',
+    password: currentUser?.password || ''
   });
 
   useEffect(() => {
@@ -522,14 +525,21 @@ export default function Settings({ currentUser, onUserUpdate }: { currentUser?: 
       setProfileData({
         name: currentUser.name || '',
         email: currentUser.email || '',
-        phone: currentUser.phone || '+91 98765 43210'
+        phone: currentUser.phone || '+91 98765 43210',
+        password: currentUser.password || ''
       });
     }
   }, [currentUser]);
 
-  const handleUpdateProfile = () => {
+  const handleUpdateProfile = async () => {
     if (onUserUpdate && currentUser) {
       const updatedUser = { ...currentUser, ...profileData };
+      
+      try {
+        await supabaseService.updateStaff(currentUser.id, updatedUser);
+      } catch (err) {
+        console.error('Error updating staff database profile:', err);
+      }
       
       // Update in our users list too
       const updatedUsersList = users.map((u: any) => u.id === currentUser.id ? updatedUser : u);
@@ -729,7 +739,7 @@ export default function Settings({ currentUser, onUserUpdate }: { currentUser?: 
 
     if (editingUserId) {
       // Update existing user
-      const updates = {
+      const updates: any = {
         name: newUser.name,
         email: newUser.email,
         role: newUser.role,
@@ -737,6 +747,9 @@ export default function Settings({ currentUser, onUserUpdate }: { currentUser?: 
         designation: newUser.role,
         avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${newUser.name}`
       };
+      if (newUser.password) {
+        updates.password = newUser.password;
+      }
       
       await supabaseService.updateStaff(editingUserId, updates);
       
@@ -769,6 +782,7 @@ export default function Settings({ currentUser, onUserUpdate }: { currentUser?: 
         role: newUser.role,
         department: newUser.department,
         designation: newUser.role,
+        password: newUser.password,
         avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${newUser.name}`
       };
       
@@ -1110,7 +1124,16 @@ export default function Settings({ currentUser, onUserUpdate }: { currentUser?: 
                   </div>
                   <div className="space-y-2">
                     <Label>Role</Label>
-                    <Input value={currentUser?.role.replace('_', ' ')} disabled className="bg-slate-50" />
+                    <Input value={currentUser?.role?.replace('_', ' ')} disabled className="bg-slate-50" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>My Password</Label>
+                    <Input 
+                      type="password"
+                      placeholder="Enter new password"
+                      value={profileData.password || ''} 
+                      onChange={(e) => setProfileData({...profileData, password: e.target.value})} 
+                    />
                   </div>
                 </div>
               </div>
@@ -1753,10 +1776,45 @@ export default function Settings({ currentUser, onUserUpdate }: { currentUser?: 
                 </div>
                 <div className="space-y-2">
                   <Label>Password</Label>
-                  <div className="relative">
-                    <Input type="password" placeholder="••••••••" value={newUser.password} onChange={(e) => setNewUser({...newUser, password: e.target.value})} />
-                    <Lock className="w-4 h-4 absolute right-3 top-3 text-slate-400" />
+                  <div className="flex gap-2">
+                    <div className="relative flex-1">
+                      <Input 
+                        type="text" 
+                        placeholder={editingUserId ? "Leave empty to keep unchanged" : "Password"} 
+                        value={newUser.password} 
+                        onChange={(e) => setNewUser({...newUser, password: e.target.value})} 
+                        disabled={isFrontOffice}
+                        className={isFrontOffice ? "bg-slate-100 cursor-not-allowed pr-8 font-semibold text-slate-700" : "pr-8 font-semibold text-slate-700"}
+                      />
+                      <Lock className="w-4 h-4 absolute right-3 top-3 text-slate-400" />
+                    </div>
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      className="bg-indigo-50 border-indigo-200 text-indigo-700 hover:bg-indigo-100 font-bold"
+                      onClick={() => {
+                        const randomPass = Math.random().toString(36).substring(2, 6) + Math.floor(100 + Math.random() * 900);
+                        setNewUser({ ...newUser, password: randomPass });
+                        toast.success(`Password generated: ${randomPass}`);
+                      }}
+                    >
+                      Generate
+                    </Button>
                   </div>
+                  {newUser.password && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="w-full bg-[#25D366] hover:bg-[#128C7E] text-white gap-2 font-bold mt-1 text-xs"
+                      onClick={() => {
+                        const message = encodeURIComponent(`Hello ${newUser.name || 'Staff'},\n\nYour CureLine Medical Center login credentials are:\nUsername/Email: ${newUser.email || '(not set)'}\nPassword: ${newUser.password}\n\nPlease keep these credentials safe.\n\nLogin URL: ${window.location.origin}`);
+                        window.open(`https://api.whatsapp.com/send?text=${message}`, '_blank');
+                        toast.success('Opening WhatsApp sharing link...');
+                      }}
+                    >
+                      Share on WhatsApp
+                    </Button>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label>Role</Label>
@@ -1816,6 +1874,14 @@ export default function Settings({ currentUser, onUserUpdate }: { currentUser?: 
                           <Badge variant="outline" className="text-[9px] font-bold uppercase">{user.role}</Badge>
                           <span className="text-[10px] text-slate-400 font-medium truncate">{user.department}</span>
                         </div>
+                        {isAdmin && (
+                          <div className="mt-1.5 flex items-center gap-1.5 text-[10px]">
+                            <span className="text-slate-400 font-bold uppercase">Password:</span>
+                            <span className="font-mono bg-indigo-50 border border-indigo-100 text-indigo-700 font-bold px-1.5 py-0.5 rounded">
+                              {user.password || 'hospital123'}
+                            </span>
+                          </div>
+                        )}
                       </div>
                       <div className="flex gap-1">
                         <Button variant="ghost" size="icon" className="h-8 w-8 text-medical-blue" onClick={() => {
@@ -1825,7 +1891,7 @@ export default function Settings({ currentUser, onUserUpdate }: { currentUser?: 
                             email: user.email,
                             role: user.role,
                             department: user.department || '',
-                            password: '' // Don't pre-fill password for security
+                            password: isAdmin ? (user.password || '') : '' // Only pre-fill password for admin
                           });
                           const element = document.getElementById('user-creation-form');
                           if (element) element.scrollIntoView({ behavior: 'smooth' });
