@@ -1807,7 +1807,8 @@ export default function Settings({ currentUser, onUserUpdate }: { currentUser?: 
                       size="sm"
                       className="w-full bg-[#25D366] hover:bg-[#128C7E] text-white gap-2 font-bold mt-1 text-xs"
                       onClick={() => {
-                        const message = encodeURIComponent(`Hello ${newUser.name || 'Staff'},\n\nYour CureLine Medical Center login credentials are:\nUsername/Email: ${newUser.email || '(not set)'}\nPassword: ${newUser.password}\n\nPlease keep these credentials safe.\n\nLogin URL: ${window.location.origin}`);
+                        const hName = hospitalInfo?.name || 'Hospital';
+                        const message = encodeURIComponent(`Hello ${newUser.name || 'Staff'},\n\nYour ${hName} login credentials are:\nUsername/Email: ${newUser.email || '(not set)'}\nPassword: ${newUser.password}\n\nPlease keep these credentials safe.\n\nLogin URL: ${window.location.origin}`);
                         window.open(`https://api.whatsapp.com/send?text=${message}`, '_blank');
                         toast.success('Opening WhatsApp sharing link...');
                       }}
