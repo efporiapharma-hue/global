@@ -65,6 +65,54 @@ export default function Pharmacy() {
   const currentUser = storage.get(STORAGE_KEYS.SESSION_USER, null);
   const isAccountant = currentUser?.role === 'ACCOUNTANT';
 
+  const [editingBillInner, setEditingBillInner] = useState<any | null>(null);
+  const [isEditBillOpen, setIsEditBillOpen] = useState(false);
+
+  const handleSaveEditBillInner = async () => {
+    if (!editingBillInner) return;
+    
+    const updatedBill = {
+      ...editingBillInner,
+      is_edited: true,
+      tpa_approval_status: 'Edited',
+      total_amount: Number(editingBillInner.totalAmount) || Number(editingBillInner.total_amount),
+      paid_amount: Number(editingBillInner.paidAmount) || Number(editingBillInner.paid_amount) || Number(editingBillInner.totalAmount) || Number(editingBillInner.total_amount),
+    };
+
+    try {
+      const dbRes = await supabaseService.updateInvoice(
+        editingBillInner.id,
+        updatedBill,
+        editingBillInner.invoice_items || []
+      );
+      
+      const sessionBills = storage.get(STORAGE_KEYS.BILLING, []);
+      const index = sessionBills.findIndex((b: any) => b.id === editingBillInner.id);
+      if (index !== -1) {
+        sessionBills[index] = {
+          ...sessionBills[index],
+          ...updatedBill,
+          patient_name: editingBillInner.patient_name || editingBillInner.patient_name,
+          patient_phone: editingBillInner.patient_phone || editingBillInner.patient_phone,
+          prescribing_doctor: editingBillInner.prescribing_doctor || editingBillInner.prescribing_doctor,
+          totalAmount: Number(editingBillInner.totalAmount),
+          total_amount: Number(editingBillInner.totalAmount),
+          paid_amount: Number(editingBillInner.totalAmount),
+          is_edited: true
+        };
+        storage.set(STORAGE_KEYS.BILLING, sessionBills);
+      }
+      
+      toast.success('Pharmacy billing invoice updated successfully & marked as Edited!');
+      setIsEditBillOpen(false);
+      setEditingBillInner(null);
+      fetchData();
+    } catch (e: any) {
+      console.error(e);
+      toast.error('Failed to update billing invoice');
+    }
+  };
+
   const fetchData = async () => {
     setLoading(true);
     const [invData, invoicesData, patientsData, dbSettings] = await Promise.all([
@@ -1027,7 +1075,16 @@ export default function Pharmacy() {
                       const patient = patients.find(p => p.id === bill.patient_id);
                       return (
                         <TableRow key={bill.id} className="border-slate-50">
-                          <TableCell className="font-medium text-medical-blue whitespace-nowrap">#{bill.id.toUpperCase()}</TableCell>
+                          <TableCell className="font-medium text-medical-blue whitespace-nowrap">
+                            <div className="flex flex-col gap-1 items-start">
+                              <span>#{bill.id.toUpperCase()}</span>
+                              {(bill.is_edited || bill.tpa_approval_status === 'Edited') && (
+                                <Badge variant="outline" className="text-[10px] px-1 py-0 bg-amber-50 text-amber-700 border-amber-200 font-bold select-none">
+                                  Edited
+                                </Badge>
+                              )}
+                            </div>
+                          </TableCell>
                           <TableCell className="whitespace-nowrap">
                             <div>
                               <p className="font-medium text-sm">
@@ -1047,6 +1104,24 @@ export default function Pharmacy() {
                           </TableCell>
                           <TableCell className="text-right whitespace-nowrap">
                             <div className="flex justify-end gap-2">
+                              {!isAccountant && (
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon" 
+                                  className="h-8 w-8 text-medical-blue" 
+                                  title="Edit Pharmacy Bill"
+                                  onClick={() => {
+                                    setEditingBillInner({
+                                      ...bill,
+                                      patient_name: bill.patient_name || patient?.name || 'Walk-in Customer',
+                                      patient_phone: bill.patient_phone || patient?.phone || ''
+                                    });
+                                    setIsEditBillOpen(true);
+                                  }}
+                                >
+                                  <Edit className="w-4 h-4" />
+                                </Button>
+                              )}
                               <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => printPharmacyInvoice(bill)}>
                                 <Printer className="w-4 h-4" />
                               </Button>
@@ -1285,6 +1360,75 @@ export default function Pharmacy() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Edit Pharmacy Bill Dialog */}
+      <Dialog open={isEditBillOpen} onOpenChange={setIsEditBillOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Edit Pharmacy Bill #{editingBillInner?.id.slice(0, 8).toUpperCase()}</DialogTitle>
+            <DialogDescription>
+              Modify customer details and total amount. This action will label the bill as Edited.
+            </DialogDescription>
+          </DialogHeader>
+          {editingBillInner && (
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-bill-name">Patient/Customer Name</Label>
+                <Input
+                  id="edit-bill-name"
+                  value={editingBillInner.patient_name || ''}
+                  onChange={(e) => setEditingBillInner({ ...editingBillInner, patient_name: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="edit-bill-phone">Customer Phone (Optional)</Label>
+                <Input
+                  id="edit-bill-phone"
+                  value={editingBillInner.patient_phone || ''}
+                  onChange={(e) => setEditingBillInner({ ...editingBillInner, patient_phone: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="edit-bill-doctor">Prescribing Doctor</Label>
+                <Input
+                  id="edit-bill-doctor"
+                  value={editingBillInner.prescribing_doctor || ''}
+                  onChange={(e) => setEditingBillInner({ ...editingBillInner, prescribing_doctor: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="edit-bill-amount">Total Bill Amount</Label>
+                <Input
+                  id="edit-bill-amount"
+                  type="number"
+                  value={editingBillInner.totalAmount ?? editingBillInner.total_amount ?? 0}
+                  onChange={(e) => setEditingBillInner({ 
+                    ...editingBillInner, 
+                    totalAmount: Number(e.target.value),
+                    total_amount: Number(e.target.value),
+                    paidAmount: Number(e.target.value),
+                    paid_amount: Number(e.target.value)
+                  })}
+                />
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              setIsEditBillOpen(false);
+              setEditingBillInner(null);
+            }}>
+              Cancel
+            </Button>
+            <Button className="bg-medical-blue text-white" onClick={handleSaveEditBillInner}>
+              Save and Mark Edited
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

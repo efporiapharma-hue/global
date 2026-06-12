@@ -1869,7 +1869,7 @@ export default function OPD() {
                           >
                             <FileText className="w-4 h-4" />
                           </Button>
-                          {(currentUser?.role === 'SUPER_ADMIN' || currentUser?.role === 'DOCTOR' || currentUser?.role === 'NURSE') && (
+                          {(currentUser?.role === 'SUPER_ADMIN' || currentUser?.role === 'DOCTOR' || currentUser?.role === 'NURSE' || currentUser?.role === 'RECEPTIONIST' || currentUser?.role === 'RECEPTION' || currentUser?.role === 'FRONT_DESK') && (
                             <Button 
                               variant="ghost" 
                               size="icon" 

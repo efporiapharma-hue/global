@@ -55,6 +55,7 @@ export default function Billing() {
   const [bills, setBills] = useState<any[]>([]);
   const [patients, setPatients] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>(() => storage.get(STORAGE_KEYS.USERS, MOCK_USERS));
+  const [expenses, setExpenses] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [templateImage, setTemplateImage] = useState<string | null>(() => storage.get(STORAGE_KEYS.TEMPLATE_IMAGE, null));
   const [hospitalInfo, setHospitalInfo] = useState(() => storage.get(STORAGE_KEYS.HOSPITAL_INFO, {
@@ -67,15 +68,17 @@ export default function Billing() {
 
   const fetchData = async () => {
     setLoading(true);
-    const [invoicesData, patientsData, staffData] = await Promise.all([
+    const [invoicesData, patientsData, staffData, expensesData] = await Promise.all([
       supabaseService.getInvoices(),
       supabaseService.getPatients(),
-      supabaseService.getStaff()
+      supabaseService.getStaff(),
+      supabaseService.getExpenses()
     ]);
 
     if (invoicesData) setBills(invoicesData);
     if (patientsData) setPatients(patientsData);
     if (staffData && staffData.length > 0) setUsers(staffData);
+    if (expensesData) setExpenses(expensesData);
     setLoading(false);
   };
 
@@ -88,6 +91,29 @@ export default function Billing() {
   const [materialRates] = useState(() => storage.get(STORAGE_KEYS.MATERIAL_RATES, []));
 
   const currentUser = storage.get(STORAGE_KEYS.SESSION_USER, null);
+
+  const isAddedByAdmin = (record: any) => {
+    if (!record) return false;
+    const seedIds = ['bill1', 'bill2', 'bill3', 'bill4', 'bill5'];
+    if (record.id && seedIds.includes(record.id)) return true;
+
+    const creatorId = record.created_by || record.issued_by || record.createdBy;
+    if (!creatorId) {
+      // Treat legacy records without creator info as admin-seeded fail-safe
+      return true;
+    }
+    if (creatorId === 'u2' || creatorId === 'u-admin' || creatorId === 'u-admingh') return true;
+
+    const creatorUser = users?.find((u: any) => u.id === creatorId || u.email === creatorId);
+    if (creatorUser && (creatorUser.role === 'SUPER_ADMIN' || creatorUser.role === 'ADMIN')) return true;
+
+    return false;
+  };
+
+  const canModify = (record: any) => {
+    if (currentUser?.role === 'SUPER_ADMIN') return true;
+    return !isAddedByAdmin(record);
+  };
 
   const logAudit = (action: string, entityId: string, details: any) => {
     const logs = storage.get(STORAGE_KEYS.AUDIT_LOGS, []);
@@ -163,11 +189,14 @@ export default function Billing() {
       patient_id: newInvoice.patientId,
       total_amount: totalInvoiceAmount,
       discount_amount: newInvoice.discount || 0,
+      payable_amount: finalAmount,
       paid_amount: finalAmount,
       payment_status: 'Paid',
       payment_method: newInvoice.paymentMode,
       status: 'Settled',
-      type: 'Independent'
+      type: 'Independent',
+      created_by: currentUser?.id || 'u-accounts',
+      issued_by: currentUser?.id || 'u-accounts'
     };
     
     const itemsToInsert = invoiceItems.map(item => ({
@@ -241,8 +270,33 @@ export default function Billing() {
       (bill.patients?.mrn?.toLowerCase()?.includes(searchQuery.toLowerCase()) || false) ||
       (bill.patients?.phone?.includes(searchQuery) || false);
     
-    const categoryMatch = filterCategory === 'all' || 
-      (bill.invoice_items || []).some((item: any) => item && item.category && item.category.toLowerCase() === filterCategory.toLowerCase());
+    let categoryMatch = false;
+    if (filterCategory === 'all') {
+      categoryMatch = true;
+    } else {
+      const bType = (bill.type || '').toLowerCase();
+      const bMethod = (bill.payment_method || '').toLowerCase();
+      const hasItemCategory = (cat: string) => 
+        (bill.invoice_items || []).some((item: any) => 
+          item && item.category && item.category.toLowerCase() === cat.toLowerCase()
+        );
+      
+      if (filterCategory === 'opd') {
+        categoryMatch = bType === 'opd' || hasItemCategory('opd');
+      } else if (filterCategory === 'ipd') {
+        categoryMatch = bType === 'ipd' || hasItemCategory('ipd');
+      } else if (filterCategory === 'lab') {
+        categoryMatch = bType === 'lab' || hasItemCategory('lab') || hasItemCategory('path');
+      } else if (filterCategory === 'radiology') {
+        categoryMatch = bType === 'radiology' || hasItemCategory('radio') || hasItemCategory('radiology');
+      } else if (filterCategory === 'pharmacy') {
+        categoryMatch = bType === 'pharmacy' || hasItemCategory('pharmacy');
+      } else if (filterCategory === 'ot') {
+        categoryMatch = bType === 'ot' || hasItemCategory('ot');
+      } else if (filterCategory === 'insurance') {
+        categoryMatch = bMethod === 'insurance' || bType.includes('insurance');
+      }
+    }
     
     return searchMatch && categoryMatch;
   });
@@ -256,6 +310,10 @@ export default function Billing() {
 
   const handleDeleteBill = async (id: string) => {
     const billToDelete = bills.find(b => b.id === id);
+    if (billToDelete && !canModify(billToDelete)) {
+      toast.error('This invoice was created by administration and cannot be cancelled by non-admin roles.');
+      return;
+    }
     const success = await supabaseService.deleteInvoice(id);
     if (success) {
       logAudit('DELETE', id, { bill: billToDelete });
@@ -291,6 +349,10 @@ export default function Billing() {
   };
 
   const handleEditBill = (bill: any) => {
+    if (bill && !canModify(bill)) {
+      toast.error('This invoice was created by administration and cannot be modified by non-admin roles.');
+      return;
+    }
     setEditingBill({ ...bill });
     const rawItems = bill.invoice_items || bill.items || [];
     const formattedItems = rawItems.map((it: any) => ({
@@ -307,16 +369,23 @@ export default function Billing() {
       toast.error('Add at least one item');
       return;
     }
+
+    if (editingBill && !canModify(editingBill)) {
+      toast.error('This invoice was created by administration and cannot be modified by non-admin roles.');
+      return;
+    }
     
     const billToUpdate = {
       patient_id: editingBill.patient_id || editingBill.patientId,
       total_amount: totalInvoiceAmount,
       discount_amount: editingBill.discount || 0,
+      payable_amount: finalEditAmount,
       paid_amount: finalEditAmount,
       payment_method: editingBill.paymentMode || editingBill.payment_method || 'Cash',
       payment_status: 'Paid',
       status: 'Settled',
-      type: editingBill.type || 'Independent'
+      type: editingBill.type || 'Independent',
+      created_by: editingBill.created_by || editingBill.issued_by
     };
 
     const itemsToInsert = invoiceItems.map(item => ({
@@ -1337,12 +1406,15 @@ export default function Billing() {
                   </div>
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Categories</SelectItem>
-                  <SelectItem value="opd">OPD</SelectItem>
-                  <SelectItem value="ipd">IPD</SelectItem>
-                  <SelectItem value="lab">Lab</SelectItem>
-                  <SelectItem value="pharmacy">Pharmacy</SelectItem>
-                  <SelectItem value="ot">OT</SelectItem>
+                  <SelectItem value="all">All Invoices</SelectItem>
+                  <SelectItem value="opd">OPD Bills</SelectItem>
+                  <SelectItem value="ipd">IPD Bills</SelectItem>
+                  <SelectItem value="lab">Lab/Diagnostics</SelectItem>
+                  <SelectItem value="radiology">Radiology</SelectItem>
+                  <SelectItem value="pharmacy">Pharmacy Bills</SelectItem>
+                  <SelectItem value="ot">OT Management</SelectItem>
+                  <SelectItem value="insurance">Insurance Claims</SelectItem>
+                  <SelectItem value="expenses">Facility Expenses</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -1353,95 +1425,145 @@ export default function Billing() {
                 <TableHeader>
                   <TableRow className="hover:bg-transparent border-slate-100 text-[11px] uppercase tracking-wider font-bold text-slate-500">
                     <TableHead className="whitespace-nowrap">Invoice ID</TableHead>
-                    <TableHead className="whitespace-nowrap">Patient Details</TableHead>
+                    <TableHead className="whitespace-nowrap">Patient/Facility Details</TableHead>
                     <TableHead className="whitespace-nowrap">Department</TableHead>
-                    <TableHead className="whitespace-nowrap">Contact Info</TableHead>
+                    <TableHead className="whitespace-nowrap">Contact Info / Description</TableHead>
                     <TableHead className="whitespace-nowrap">Date</TableHead>
                     <TableHead className="whitespace-nowrap">Amount</TableHead>
                     <TableHead className="whitespace-nowrap">Status</TableHead>
+                    <TableHead className="whitespace-nowrap">Mode</TableHead>
                     <TableHead className="text-right whitespace-nowrap">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredBills.map((bill) => {
-                    return (
-                      <TableRow key={bill.id} className="border-slate-50 hover:bg-slate-50/50 transition-colors">
-                        <TableCell className="font-bold text-medical-blue whitespace-nowrap">#{bill.id.slice(0, 8).toUpperCase()}</TableCell>
-                        <TableCell className="whitespace-nowrap">
-                          <div className="flex flex-col">
-                            <span className="font-bold text-slate-800">{bill.patients?.name || 'Walk-in'}</span>
-                            <span className="text-[10px] text-muted-foreground font-medium">{bill.patients?.mrn || 'N/A'}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell className="whitespace-nowrap">
-                          <Badge variant="outline" className="text-[10px] font-semibold border-blue-100 bg-blue-50 text-blue-700">
-                            {bill.type || 'General'}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="whitespace-nowrap">
-                          <div className="flex flex-col text-[11px]">
-                            <span className="text-slate-600 font-medium">{bill.patients?.phone || 'N/A'}</span>
-                            <span className="text-slate-400">{bill.patients?.email || 'No email provided'}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-xs text-muted-foreground whitespace-nowrap">{formatDate(bill.created_at)}</TableCell>
-                        <TableCell className="font-bold whitespace-nowrap">
-                          <div className="flex flex-col">
-                            <span>{formatCurrency(bill.paid_amount || bill.total_amount)}</span>
-                            {(bill.discount_amount || 0) > 0 && <span className="text-[9px] text-rose-500 font-bold">-{formatCurrency(bill.discount_amount)} Disc.</span>}
-                          </div>
-                        </TableCell>
-                        <TableCell className="whitespace-nowrap">
-                          <Badge variant="secondary" className={`border-none ${
-                            bill.status === 'Settled' || bill.status === 'Paid' ? 'bg-emerald-50 text-emerald-600' :
-                            bill.status === 'Partial' ? 'bg-amber-50 text-amber-600' :
-                            'bg-rose-50 text-rose-600'
-                          }`}>
-                            {bill.status === 'Settled' || bill.status === 'Paid' ? <CheckCircle2 className="w-3 h-3 mr-1" /> : 
-                             bill.status === 'Partial' ? <Clock className="w-3 h-3 mr-1" /> : 
-                             <AlertCircle className="w-3 h-3 mr-1" />}
-                            {bill.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="whitespace-nowrap">
-                          <Badge variant="outline" className="text-[10px] font-bold uppercase">{bill.payment_method || 'N/A'}</Badge>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex justify-end gap-2">
-                            <Button 
-                              variant="ghost" 
-                              size="icon" 
-                              className="h-8 w-8 text-medical-blue" 
-                              title={(!bill.patientId && !bill.patient_id) ? "No registered patient profile" : "Patient 360 Overview"} 
-                              onClick={() => {
-                                const pid = bill.patient_id || bill.patientId;
-                                if (!pid) {
-                                  toast.error("This invoice belongs to a Walk-in patient. No registered patient profile exists.");
-                                  return;
-                                }
-                                navigate(`/patient-overview?id=${pid}`);
-                              }}
-                            >
-                              <Search className="w-4 h-4" />
-                            </Button>
-                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => printInvoice(bill)}>
-                              <Printer className="w-4 h-4" />
-                            </Button>
-                            {currentUser?.role !== 'ACCOUNTANT' && (
-                              <>
-                                <Button variant="ghost" size="icon" className="h-8 w-8 text-medical-blue" onClick={() => handleEditBill(bill)}>
-                                  <Edit className="w-4 h-4" />
+                  {(() => {
+                    const displayedBills = filterCategory === 'expenses'
+                      ? expenses
+                          .filter(exp => 
+                            (exp.category || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+                            (exp.description || '').toLowerCase().includes(searchQuery.toLowerCase())
+                          )
+                          .map(exp => ({
+                            id: exp.id,
+                            patients: { name: `Facility Expense`, mrn: exp.category, phone: `N/A`, email: exp.description },
+                            type: 'Expense',
+                            created_at: exp.expense_date || exp.created_at || new Date().toISOString(),
+                            paid_amount: exp.amount,
+                            total_amount: exp.amount,
+                            status: exp.status || 'Paid',
+                            payment_method: 'N/A',
+                            isExpense: true,
+                            created_by: exp.created_by,
+                            rawExpense: exp
+                          }))
+                      : filteredBills;
+
+                    return displayedBills.map((bill) => {
+                      return (
+                        <TableRow key={bill.id} className="border-slate-50 hover:bg-slate-50/50 transition-colors">
+                          <TableCell className="font-bold text-medical-blue whitespace-nowrap">
+                            {bill.id.startsWith('exp') || bill.id.startsWith('note-') ? bill.id.toUpperCase() : `#${bill.id.slice(0, 8).toUpperCase()}`}
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap">
+                            <div className="flex flex-col">
+                              <span className="font-bold text-slate-800">{bill.patients?.name || 'Walk-in'}</span>
+                              <span className="text-[10px] text-muted-foreground font-medium">{bill.patients?.mrn || 'N/A'}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap">
+                            <Badge variant="outline" className={`text-[10px] font-semibold border-blue-100 ${bill.isExpense ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-blue-50 text-blue-700'}`}>
+                              {bill.type || 'General'}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap">
+                            <div className="flex flex-col text-[11px]">
+                              <span className="text-slate-600 font-medium">{bill.patients?.phone || 'N/A'}</span>
+                              <span className="text-slate-400 max-w-[200px] truncate">{bill.patients?.email || 'No description'}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground whitespace-nowrap">{formatDate(bill.created_at)}</TableCell>
+                          <TableCell className="font-bold whitespace-nowrap">
+                            <div className="flex flex-col">
+                              <span>{formatCurrency(bill.paid_amount || bill.total_amount)}</span>
+                              {(bill.discount_amount || 0) > 0 && <span className="text-[9px] text-rose-500 font-bold">-{formatCurrency(bill.discount_amount)} Disc.</span>}
+                            </div>
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap">
+                            <Badge variant="secondary" className={`border-none ${
+                              bill.status === 'Settled' || bill.status === 'Paid' ? 'bg-emerald-50 text-emerald-600' :
+                              bill.status === 'Partial' ? 'bg-amber-50 text-amber-600' :
+                              'bg-rose-50 text-rose-600'
+                            }`}>
+                              {bill.status === 'Settled' || bill.status === 'Paid' ? <CheckCircle2 className="w-3 h-3 mr-1" /> : 
+                               bill.status === 'Partial' ? <Clock className="w-3 h-3 mr-1" /> : 
+                               <AlertCircle className="w-3 h-3 mr-1" />}
+                              {bill.status}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap">
+                            <Badge variant="outline" className="text-[10px] font-bold uppercase">{bill.payment_method || 'N/A'}</Badge>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex justify-end gap-2 items-center">
+                              {!bill.isExpense && (
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon" 
+                                  className="h-8 w-8 text-medical-blue" 
+                                  title={(!bill.patientId && !bill.patient_id) ? "No registered patient profile" : "Patient 360 Overview"} 
+                                  onClick={() => {
+                                    const pid = bill.patient_id || bill.patientId;
+                                    if (!pid) {
+                                      toast.error("This invoice belongs to a Walk-in patient. No registered patient profile exists.");
+                                      return;
+                                    }
+                                    navigate(`/patient-overview?id=${pid}`);
+                                  }}
+                                >
+                                  <Search className="w-4 h-4" />
                                 </Button>
-                                <Button variant="ghost" size="icon" className="h-8 w-8 text-rose-500" onClick={() => handleDeleteBill(bill.id)}>
-                                  <Trash2 className="w-4 h-4" />
+                              )}
+                              {!bill.isExpense && (
+                                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => printInvoice(bill)}>
+                                  <Printer className="w-4 h-4" />
                                 </Button>
-                              </>
-                            )}
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
+                              )}
+                              {canModify(bill) ? (
+                                <>
+                                  <Button variant="ghost" size="icon" className="h-8 w-8 text-medical-blue" onClick={() => {
+                                    if (bill.isExpense) {
+                                      toast.info("Please navigate to the Expenses tab to edit facilities expenses.");
+                                    } else {
+                                      handleEditBill(bill);
+                                    }
+                                  }}>
+                                    <Edit className="w-4 h-4" />
+                                  </Button>
+                                  <Button variant="ghost" size="icon" className="h-8 w-8 text-rose-500" onClick={async () => {
+                                    if (bill.isExpense) {
+                                      const ok = await supabaseService.deleteExpense(bill.id);
+                                      if (ok) {
+                                        toast.success("Expense record removed");
+                                        fetchData();
+                                      } else {
+                                        toast.error("Failed to remove expense record");
+                                      }
+                                    } else {
+                                      handleDeleteBill(bill.id);
+                                    }
+                                  }}>
+                                    <Trash2 className="w-4 h-4" />
+                                  </Button>
+                                </>
+                              ) : (
+                                <Badge variant="secondary" className="text-[10px] text-slate-400 bg-slate-100 font-bold hover:bg-slate-100 select-none px-2 py-0.5">Admin Locked</Badge>
+                              )}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    });
+                  })()}
                 </TableBody>
               </Table>
             </div>

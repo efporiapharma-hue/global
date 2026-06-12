@@ -91,7 +91,7 @@ export default function PatientOverview({ userRole }: { userRole?: string }) {
   });
   const [uploadedFile, setUploadedFile] = useState<{name: string, url: string} | null>(null);
 
-  const isFinancialVisible = userRole !== 'DOCTOR' && userRole !== 'NURSE';
+  const isFinancialVisible = true;
   const setLoading = setIsLoading;
 
   const fetchInitialData = async () => {

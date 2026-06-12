@@ -30,6 +30,7 @@ import { Badge } from '@/components/ui/badge';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { supabaseService } from '@/services/supabaseService';
 import { useDataSync } from '@/hooks/useDataSync';
+import { storage, STORAGE_KEYS } from '@/lib/storage';
 import { 
   Dialog, 
   DialogContent, 
@@ -64,6 +65,37 @@ export default function Expenses() {
   const [editingExpense, setEditingExpense] = useState<any | null>(null);
   const [isEditExpenseOpen, setIsEditExpenseOpen] = useState(false);
 
+  const currentUser = storage.get(STORAGE_KEYS.SESSION_USER, null);
+  const [users, setUsers] = useState<any[]>(() => {
+    return storage.get(STORAGE_KEYS.USERS, []);
+  });
+
+  useEffect(() => {
+    supabaseService.getStaff().then(data => {
+      if (data && data.length > 0) {
+        setUsers(data);
+      }
+    });
+  }, []);
+
+  const isAddedByAdmin = (record: any) => {
+    if (!record) return false;
+    const creatorId = record.created_by || record.issued_by || record.createdBy;
+    if (!creatorId) {
+      // Legacy seeded expense with no creator are treated as admin-seeded
+      return true;
+    }
+    if (creatorId === 'u2' || creatorId === 'u-admin' || creatorId === 'u-admingh') return true;
+    const creatorUser = users?.find((u: any) => u.id === creatorId || u.email === creatorId);
+    if (creatorUser && (creatorUser.role === 'SUPER_ADMIN' || creatorUser.role === 'ADMIN')) return true;
+    return false;
+  };
+
+  const canModify = (record: any) => {
+    if (currentUser?.role === 'SUPER_ADMIN') return true;
+    return !isAddedByAdmin(record);
+  };
+
   const fetchExpenses = async () => {
     setIsLoading(true);
     const data = await supabaseService.getExpenses();
@@ -81,7 +113,12 @@ export default function Expenses() {
       return;
     }
 
-    const result = await supabaseService.createExpense(newExpense);
+    const expenseData = {
+      ...newExpense,
+      created_by: currentUser?.id || 'u-accounts'
+    };
+
+    const result = await supabaseService.createExpense(expenseData);
     if (result) {
       toast.success('Expense recorded');
       fetchExpenses();
@@ -104,13 +141,19 @@ export default function Expenses() {
       return;
     }
 
+    if (!canModify(editingExpense)) {
+      toast.error('This expense record was created by administration and cannot be modified by non-admin roles.');
+      return;
+    }
+
     const { id, created_at, ...updates } = editingExpense;
     const result = await supabaseService.updateExpense(id, {
       expense_date: updates.expense_date,
       category: updates.category,
       description: updates.description,
       amount: Number(updates.amount),
-      status: updates.status
+      status: updates.status,
+      created_by: editingExpense.created_by || editingExpense.issued_by
     });
 
     if (result) {
@@ -124,6 +167,12 @@ export default function Expenses() {
   };
 
   const handleDeleteExpense = async (id: string) => {
+    const expenseToDelete = expenses.find(e => e.id === id);
+    if (expenseToDelete && !canModify(expenseToDelete)) {
+      toast.error('This expense record was created by administration and cannot be deleted by non-admin roles.');
+      return;
+    }
+
     const success = await supabaseService.deleteExpense(id);
     if (success) {
       toast.success('Expense record removed');
@@ -435,16 +484,22 @@ export default function Expenses() {
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right whitespace-nowrap">
-                      <div className="flex justify-end gap-2">
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-medical-blue" onClick={() => {
-                          setEditingExpense({...expense});
-                          setIsEditExpenseOpen(true);
-                        }}>
-                          <Edit className="w-4 h-4" />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-rose-500" onClick={() => handleDeleteExpense(expense.id)}>
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
+                      <div className="flex justify-end gap-2 items-center">
+                        {canModify(expense) ? (
+                          <>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-medical-blue" onClick={() => {
+                              setEditingExpense({...expense});
+                              setIsEditExpenseOpen(true);
+                            }}>
+                              <Edit className="w-4 h-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-rose-500" onClick={() => handleDeleteExpense(expense.id)}>
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </>
+                        ) : (
+                          <Badge variant="secondary" className="text-[10px] text-slate-400 bg-slate-100 font-bold hover:bg-slate-100 select-none px-2 py-0.5">Admin Locked</Badge>
+                        )}
                         <Button variant="ghost" size="icon" className="h-8 w-8">
                           <MoreVertical className="w-4 h-4" />
                         </Button>
