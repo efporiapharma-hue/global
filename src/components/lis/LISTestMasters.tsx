@@ -36,6 +36,7 @@ import {
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
+import { storage } from '@/lib/storage';
 
 import { 
   TestCategory, 
@@ -54,10 +55,10 @@ import {
 } from './lisMockData';
 
 export default function LISTestMasters() {
-  const [categories, setCategories] = useState<TestCategory[]>(MOCK_CATEGORIES);
-  const [subCategories, setSubCategories] = useState<TestSubCategory[]>(MOCK_SUBCATEGORIES);
-  const [investigations, setInvestigations] = useState<InvestigationTest[]>(MOCK_INVESTIGATIONS);
-  const [parameters, setParameters] = useState<Parameter[]>(MOCK_PARAMETERS);
+  const [categories, setCategories] = useState<TestCategory[]>(() => storage.get('lis_categories', MOCK_CATEGORIES));
+  const [subCategories, setSubCategories] = useState<TestSubCategory[]>(() => storage.get('lis_subcategories', MOCK_SUBCATEGORIES));
+  const [investigations, setInvestigations] = useState<InvestigationTest[]>(() => storage.get('lis_investigations', MOCK_INVESTIGATIONS));
+  const [parameters, setParameters] = useState<Parameter[]>(() => storage.get('lis_parameters', MOCK_PARAMETERS));
   const [units] = useState<LabUnit[]>(MOCK_UNITS);
 
   // Search States
@@ -102,7 +103,9 @@ export default function LISTestMasters() {
       description: newCat.description || '',
       status: 'Active'
     };
-    setCategories([...categories, cat]);
+    const updated = [...categories, cat];
+    setCategories(updated);
+    storage.set('lis_categories', updated);
     setIsCatDialogOpen(false);
     setNewCat({ name: '', description: '', status: 'Active' });
     toast.success('Pathology Master Category registered!');
@@ -120,7 +123,9 @@ export default function LISTestMasters() {
       description: newSub.description || '',
       status: 'Active'
     };
-    setSubCategories([...subCategories, sub]);
+    const updated = [...subCategories, sub];
+    setSubCategories(updated);
+    storage.set('lis_subcategories', updated);
     setIsSubDialogOpen(false);
     setNewSub({ categoryId: '', name: '', description: '', status: 'Active' });
     toast.success('Pathology Master Sub-Category configured!');
@@ -149,7 +154,9 @@ export default function LISTestMasters() {
       activeStatus: 'Active',
       price: Number(newTest.price) || 200
     };
-    setInvestigations([...investigations, testToAdd]);
+    const updated = [...investigations, testToAdd];
+    setInvestigations(updated);
+    storage.set('lis_investigations', updated);
     setIsTestDialogOpen(false);
     setNewTest({
       code: '', name: '', shortName: '', department: 'Pathology',
@@ -176,7 +183,9 @@ export default function LISTestMasters() {
       formulaBased: !!newParam.formulaBased,
       formula: newParam.formula || ''
     };
-    setParameters([...parameters, param]);
+    const updated = [...parameters, param];
+    setParameters(updated);
+    storage.set('lis_parameters', updated);
     setIsParamDialogOpen(false);
     setNewParam({
       testCode: '', name: '', unit: 'g/dL', decimalPlaces: 1, sequenceNumber: 10, formulaBased: false, formula: ''

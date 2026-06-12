@@ -28,7 +28,8 @@ import {
   Building,
   Layers,
   Home,
-  HeartPulse
+  HeartPulse,
+  ShieldCheck
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -324,6 +325,41 @@ export default function IPD() {
   const [showDischargeSearchDropdown, setShowDischargeSearchDropdown] = useState(false);
   const [bypassDues, setBypassDues] = useState(false);
   const [dischargeRightPaneView, setDischargeRightPaneView] = useState<'timeline' | 'report'>('timeline');
+  const [patientChecklists, setPatientChecklists] = useState<Record<string, {
+    doctorCleared: boolean;
+    nurseCleared: boolean;
+    accountsCleared: boolean;
+    frontOfficeHandedOver: boolean;
+    doctorName?: string;
+    nurseName?: string;
+    accountsName?: string;
+    frontOfficeName?: string;
+  }>>(() => {
+    try {
+      const stored = localStorage.getItem('hms_discharge_checklists');
+      return stored ? JSON.parse(stored) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  const saveChecklist = (patId: string, updatedFields: any) => {
+    const updatedChecklists = {
+      ...patientChecklists,
+      [patId]: {
+        ...(patientChecklists[patId] || {
+          doctorCleared: false,
+          nurseCleared: false,
+          accountsCleared: false,
+          frontOfficeHandedOver: false
+        }),
+        ...updatedFields
+      }
+    };
+    setPatientChecklists(updatedChecklists);
+    localStorage.setItem('hms_discharge_checklists', JSON.stringify(updatedChecklists));
+  };
+
   const [reportSearchQuery, setReportSearchQuery] = useState('');
   const [reportTypeFilter, setReportTypeFilter] = useState('All');
   const [selectedReportSummaryId, setSelectedReportSummaryId] = useState<string | null>(null);
@@ -2613,6 +2649,240 @@ export default function IPD() {
                           </label>
                         </div>
                       )}
+                    </div>
+                  );
+                })()}
+
+                {dischargeForm.patientId && (() => {
+                  const patId = dischargeForm.patientId;
+                  const checklist = patientChecklists[patId] || {
+                    doctorCleared: false,
+                    nurseCleared: false,
+                    accountsCleared: false,
+                    frontOfficeHandedOver: false
+                  };
+                  const patDues = checkPatientDues(patId);
+
+                  // Active progress status text
+                  let progressMessage = "Stage 1: Awaiting Doctor's clinical initiation.";
+                  let progressBg = "bg-amber-50 text-amber-805 border-amber-200";
+                  if (checklist.doctorCleared && !checklist.nurseCleared) {
+                    progressMessage = "Stage 2: Doctor initiated. Awaiting Nurse file audit.";
+                    progressBg = "bg-blue-50 text-blue-805 border-blue-200";
+                  } else if (checklist.doctorCleared && checklist.nurseCleared && !checklist.accountsCleared) {
+                    progressMessage = "Stage 3: Nurse papers verified. Awaiting Accounts clearance.";
+                    progressBg = "bg-purple-50 text-purple-805 border-purple-200";
+                  } else if (checklist.doctorCleared && checklist.nurseCleared && checklist.accountsCleared && !checklist.frontOfficeHandedOver) {
+                    progressMessage = "Stage 4: Accounts cleared. Awaiting final Front Office signed handover.";
+                    progressBg = "bg-indigo-50 text-indigo-805 border-indigo-200";
+                  } else if (checklist.doctorCleared && checklist.nurseCleared && checklist.accountsCleared && checklist.frontOfficeHandedOver) {
+                    progressMessage = "All stages completed! Discharge note handed over safely.";
+                    progressBg = "bg-emerald-50 text-emerald-805 border-emerald-200";
+                  }
+
+                  return (
+                    <div className="p-4 bg-slate-50 border border-slate-100 rounded-2xl space-y-3.5 text-left animate-in fade-in duration-200">
+                      <div>
+                        <span className="p-1 px-2 rounded bg-indigo-900 text-white font-mono text-[8px] font-black uppercase tracking-widest my-0.5">
+                          DISCHARGE PROTOCOL
+                        </span>
+                        <h4 className="text-xs font-black text-slate-800 mt-1 uppercase tracking-wide">
+                          Administrative Discharge Clearance Workflow
+                        </h4>
+                        <p className="text-[10px] text-slate-500 font-medium">
+                          Strict multi-role verification sequence required prior to physical gate checkout.
+                        </p>
+                      </div>
+
+                      <div className={`p-2 px-3 rounded-lg border text-[10px] font-bold ${progressBg}`}>
+                        ● Current Status: {progressMessage}
+                      </div>
+
+                      {/* Checklist Iteration */}
+                      <div className="space-y-3 pt-1">
+                        {/* Step 1: Doctor Initiation */}
+                        <div className="flex items-start gap-3 p-2.5 bg-white rounded-xl border border-slate-100 shadow-sm">
+                          <input
+                            type="checkbox"
+                            id="chk-doc"
+                            checked={checklist.doctorCleared}
+                            onChange={(e) => {
+                              const isAuthorized = currentUser?.role === 'SUPER_ADMIN' || currentUser?.role === 'ADMIN' || currentUser?.role === 'DOCTOR' || currentUser?.role === 'SURGEON';
+                              if (!isAuthorized) {
+                                toast.error("Unauthorized: Only a Medical Doctor, Surgeon, or Master Admin can clinically initiate discharges.");
+                                return;
+                              }
+                              saveChecklist(patId, { doctorCleared: e.target.checked, doctorName: currentUser?.name || 'Attending Doctor' });
+                            }}
+                            className="w-4 h-4 mt-0.5 rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                          />
+                          <div className="flex-1 text-xs">
+                            <div className="flex items-center justify-between">
+                              <label htmlFor="chk-doc" className="font-extrabold text-slate-800 cursor-pointer select-none">
+                                Stage 1: Clinical Discharge Initiation
+                              </label>
+                              <span className="text-[8px] bg-amber-50 rounded border border-amber-200 px-1.5 py-0.5 text-amber-800 font-black tracking-wider uppercase">
+                                DOCTOR
+                              </span>
+                            </div>
+                            <p className="text-[10px] text-slate-500 leading-snug mt-0.5">
+                              Doctor (or active MD) authorizes clinical file, enters home medications, and signs off.
+                            </p>
+                            {checklist.doctorCleared && (
+                              <p className="text-[9px] text-emerald-600 font-black flex items-center gap-1 mt-1 font-mono">
+                                ✓ Authenticated: {checklist.doctorName || 'Attending MD'}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Step 2: Nursing Paper Audit */}
+                        <div className={`flex items-start gap-3 p-2.5 bg-white rounded-xl border border-slate-100 shadow-sm ${(currentUser?.role !== 'SUPER_ADMIN' && currentUser?.role !== 'ADMIN' && !checklist.doctorCleared) ? 'opacity-50 pointer-events-none' : ''}`}>
+                          <input
+                            type="checkbox"
+                            id="chk-nurse"
+                            checked={checklist.nurseCleared}
+                            onChange={(e) => {
+                              const isAuthorized = currentUser?.role === 'SUPER_ADMIN' || currentUser?.role === 'ADMIN' || currentUser?.role === 'NURSE';
+                              if (!isAuthorized) {
+                                toast.error("Unauthorized: Only Nursing staff or Master Admin can audit clinical worksheets.");
+                                return;
+                              }
+                              if (!checklist.doctorCleared && currentUser?.role !== 'SUPER_ADMIN' && currentUser?.role !== 'ADMIN') {
+                                toast.error("Process Lock: Stage 1 must be cleared by a Doctor first.");
+                                return;
+                              }
+                              saveChecklist(patId, { nurseCleared: e.target.checked, nurseName: currentUser?.name || 'Ward Nurse' });
+                            }}
+                            className="w-4 h-4 mt-0.5 rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                            disabled={currentUser?.role !== 'SUPER_ADMIN' && currentUser?.role !== 'ADMIN' && !checklist.doctorCleared}
+                          />
+                          <div className="flex-1 text-xs">
+                            <div className="flex items-center justify-between">
+                              <label htmlFor="chk-nurse" className="font-extrabold text-slate-800 cursor-pointer select-none">
+                                Stage 2: Nursing Station Verification
+                              </label>
+                              <span className="text-[8px] bg-blue-50 rounded border border-blue-200 px-1.5 py-0.5 text-blue-800 font-black tracking-wider uppercase">
+                                NURSE
+                              </span>
+                            </div>
+                            <p className="text-[10px] text-slate-500 leading-snug mt-0.5">
+                              Nurse station audits physical medical files, reports, vitals history, and attaches diagnostic print sheets.
+                            </p>
+                            {checklist.nurseCleared && (
+                              <p className="text-[9px] text-emerald-600 font-black flex items-center gap-1 mt-1 font-mono">
+                                ✓ Verified: {checklist.nurseName || 'Ward Nurse'}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Step 3: Accounts section zero dues check */}
+                        <div className={`flex items-start gap-3 p-2.5 bg-white rounded-xl border border-slate-100 shadow-sm ${(currentUser?.role !== 'SUPER_ADMIN' && currentUser?.role !== 'ADMIN' && !checklist.nurseCleared) ? 'opacity-50 pointer-events-none' : ''}`}>
+                          <input
+                            type="checkbox"
+                            id="chk-accounts"
+                            checked={checklist.accountsCleared}
+                            onChange={(e) => {
+                              const isAuthorized = currentUser?.role === 'SUPER_ADMIN' || currentUser?.role === 'ADMIN' || currentUser?.role === 'ACCOUNTANT';
+                              if (!isAuthorized) {
+                                toast.error("Unauthorized: Only an Accountant, Finance Auditor, or Master Admin can clear hospital billing dues.");
+                                return;
+                              }
+                              if (!checklist.nurseCleared && currentUser?.role !== 'SUPER_ADMIN' && currentUser?.role !== 'ADMIN') {
+                                toast.error("Process Lock: Stage 2 must be completed by Nursing first.");
+                                return;
+                              }
+                              saveChecklist(patId, { accountsCleared: e.target.checked, accountsName: currentUser?.name || 'Accounts Auditor' });
+                            }}
+                            className="w-4 h-4 mt-0.5 rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                            disabled={currentUser?.role !== 'SUPER_ADMIN' && currentUser?.role !== 'ADMIN' && !checklist.nurseCleared}
+                          />
+                          <div className="flex-1 text-xs">
+                            <div className="flex items-center justify-between">
+                              <label htmlFor="chk-accounts" className="font-extrabold text-slate-800 cursor-pointer select-none">
+                                Stage 3: Accounts section dues audit
+                              </label>
+                              <span className="text-[8px] bg-purple-50 rounded border border-purple-200 px-1.5 py-0.5 text-purple-800 font-black tracking-wider uppercase">
+                                ACCOUNTS
+                              </span>
+                            </div>
+                            <p className="text-[10px] text-slate-500 leading-snug mt-0.5">
+                              Accounts officer audits final bills, medicines billing, and resolves outstanding dues.
+                            </p>
+                            {patDues > 0 ? (
+                              <p className="text-[9px] text-rose-500 font-black flex items-center gap-1 mt-1 font-mono">
+                                ⚠️ Outstanding: ₹{patDues.toLocaleString()} found. Clear dues or click bypass.
+                              </p>
+                            ) : (
+                              <p className="text-[9px] text-emerald-600 font-black flex items-center gap-1 mt-1 font-mono">
+                                ✓ Zero Dues Autodetected. Clear to pass.
+                              </p>
+                            )}
+                            {checklist.accountsCleared && (
+                              <p className="text-[9px] text-emerald-600 font-black flex items-center gap-1 mt-1 font-mono">
+                                ✓ Auditor Cleared: {checklist.accountsName || 'Finance Auditor'}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Step 4: Front Office Handover */}
+                        <div className={`flex items-start gap-3 p-2.5 bg-white rounded-xl border border-slate-100 shadow-sm ${(currentUser?.role !== 'SUPER_ADMIN' && currentUser?.role !== 'ADMIN' && !checklist.accountsCleared) ? 'opacity-50 pointer-events-none' : ''}`}>
+                          <input
+                            type="checkbox"
+                            id="chk-fo"
+                            checked={checklist.frontOfficeHandedOver}
+                            onChange={(e) => {
+                              const isAuthorized = currentUser?.role === 'SUPER_ADMIN' || currentUser?.role === 'ADMIN' || ['RECEPTION', 'RECEPTIONIST', 'FRONT_DESK'].includes(currentUser?.role || '');
+                              if (!isAuthorized) {
+                                toast.error("Unauthorized: Only Front Office receptionists or Master Admin can authorize physical gate checkout & release.");
+                                return;
+                              }
+                              if (!checklist.accountsCleared && currentUser?.role !== 'SUPER_ADMIN' && currentUser?.role !== 'ADMIN') {
+                                toast.error("Process Lock: Stage 3 must be cleared by Accounts audit first.");
+                                return;
+                              }
+                              saveChecklist(patId, { frontOfficeHandedOver: e.target.checked, frontOfficeName: currentUser?.name || 'FO Receptionist' });
+                            }}
+                            className="w-4 h-4 mt-0.5 rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                            disabled={currentUser?.role !== 'SUPER_ADMIN' && currentUser?.role !== 'ADMIN' && !checklist.accountsCleared}
+                          />
+                          <div className="flex-1 text-xs">
+                            <div className="flex items-center justify-between">
+                              <label htmlFor="chk-fo" className="font-extrabold text-slate-800 cursor-pointer select-none">
+                                Stage 4: Final Front Office Handover
+                              </label>
+                              <span className="text-[8px] bg-indigo-50 rounded border border-indigo-200 px-1.5 py-0.5 text-indigo-800 font-black tracking-wider uppercase">
+                                FRONT OFFICE
+                              </span>
+                            </div>
+                            <p className="text-[10px] text-slate-500 leading-snug mt-0.5">
+                              Front Office verifies preceding cleared stages, hands printed Signed Discharge summary slip & gate pass.
+                            </p>
+                            {checklist.frontOfficeHandedOver && (
+                              <p className="text-[9px] text-emerald-600 font-black flex items-center gap-1 mt-1 font-mono">
+                                ✓ Handed Over by: {checklist.frontOfficeName || 'FO Officer'}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Official Administrative Bulletin Note */}
+                      <div className="p-3 bg-indigo-50/50 rounded-xl border border-indigo-100 text-[10px] text-slate-600 space-y-1">
+                        <p className="font-extrabold text-indigo-950 uppercase tracking-widest text-[9px] flex items-center gap-1 font-mono">
+                          <ShieldCheck className="w-3.5 h-3.5 text-indigo-600" />
+                          Official Policy Protocol Reminder
+                        </p>
+                        <p className="leading-relaxed font-sans text-slate-600">
+                          As per executive hospital clinical guidelines: <br/>
+                          1. <strong>Doctor</strong> MUST initiate and declare discharge treatment summary. <br/>
+                          2. <strong>Nurse</strong> station reviews files, clinical reports, and counts papers. <br/>
+                          3. <strong>Accounts section</strong> audits transactions to confirm there are absolute zero dues. <br/>
+                          4. <strong>Front Office desk</strong> acts as final station to check clearances and hand over signed notes.
+                        </p>
+                      </div>
                     </div>
                   );
                 })()}

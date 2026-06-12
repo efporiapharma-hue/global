@@ -46,9 +46,11 @@ export default function Login({ onLogin }: LoginProps) {
       { email: 'frontdesk@hospital.com', pass: 'front123' },
       { email: 'accounts@hospital.com', pass: 'accounts123' },
       { email: 'pharmacy@hospital.com', pass: 'pharmacy123' },
+      { email: 'radiologist@hospital.com', pass: 'radiology123' },
       { email: 'frontoffice', pass: 'global123' },
       { email: 'accounts', pass: 'global123' },
       { email: 'pharmacy', pass: 'global123' },
+      { email: 'radiologist', pass: 'global123' },
     ];
 
     const fallbackUserProfiles: Record<string, any> = {
@@ -60,9 +62,11 @@ export default function Login({ onLogin }: LoginProps) {
       'frontdesk@hospital.com': { id: 'u-frontdesk', name: 'Front Desk Staff', email: 'frontdesk@hospital.com', role: 'RECEPTION', department: 'Registration', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Front' },
       'accounts@hospital.com': { id: 'u-accounts', name: 'Hospital Accountant', email: 'accounts@hospital.com', role: 'ACCOUNTANT', department: 'Finance', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Accounts' },
       'pharmacy@hospital.com': { id: 'u-pharmacy', name: 'Chief Pharmacist', email: 'pharmacy@hospital.com', role: 'PHARMACIST', department: 'Pharmacy', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Pharmacy' },
+      'radiologist@hospital.com': { id: 'u-radiologist', name: 'Chief Radiologist', email: 'radiologist@hospital.com', role: 'RADIOLOGIST', department: 'Radiology', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Radio' },
       'frontoffice': { id: 'u-frontoffice', name: 'Front Office Receptionist', email: 'frontoffice', role: 'RECEPTION', department: 'Registration', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Office' },
       'accounts': { id: 'u-accounts-global', name: 'Accounts Officer', email: 'accounts', role: 'ACCOUNTANT', department: 'Finance', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Finance' },
-      'pharmacy': { id: 'u-pharmacy-global', name: 'Pharmacist (Global)', email: 'pharmacy', role: 'PHARMACIST', department: 'Pharmacy', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=GlobalPharmacy' }
+      'pharmacy': { id: 'u-pharmacy-global', name: 'Pharmacist (Global)', email: 'pharmacy', role: 'PHARMACIST', department: 'Pharmacy', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=GlobalPharmacy' },
+      'radiologist': { id: 'u-radiologist-global', name: 'Radiologist (Global)', email: 'radiologist', role: 'RADIOLOGIST', department: 'Radiology', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=GlobalRadio' }
     };
 
     try {
@@ -79,7 +83,7 @@ export default function Login({ onLogin }: LoginProps) {
         if (hardcodedAuth) {
           userDetails.password = hardcodedAuth.pass;
         } else {
-          if (password === 'hospital123' || password === 'global123' || password === 'admin123' || password === 'doctor123' || password === 'lab123' || password === 'nurse123' || password === 'front123' || password === 'accounts123' || password === 'pharmacy123' || password === 'GH@12345') {
+          if (password === 'hospital123' || password === 'global123' || password === 'admin123' || password === 'doctor123' || password === 'lab123' || password === 'nurse123' || password === 'front123' || password === 'accounts123' || password === 'pharmacy123' || password === 'radiology123' || password === 'GH@12345') {
             userDetails.password = password;
           }
         }

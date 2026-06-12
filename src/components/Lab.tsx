@@ -161,6 +161,9 @@ function LabQuickRegisterForm({ onRegistered }: { onRegistered: () => void }) {
 }
 
 export default function Lab() {
+  const currentUser = storage.get(STORAGE_KEYS.SESSION_USER, null);
+  const isRadiologist = currentUser?.role === 'RADIOLOGIST';
+
   const [activeTab, setActiveTab] = useState<'pathology' | 'radiology' | 'external'>('pathology');
   const [pathologyMode, setPathologyMode] = useState<'standard' | 'masters' | 'workbench' | 'reports' | 'advanced'>('standard');
   const [mainTab, setMainTab] = useState<'orders' | 'billing' | 'appointments' | 'setup'>('orders');
@@ -203,6 +206,15 @@ export default function Lab() {
 
   const [externalReports, setExternalReports] = useState<{id: string, patentName: string, testName: string, date: string, url: string}[]>(() => storage.get(STORAGE_KEYS.EXTERNAL_REPORTS, []));
   const [radiologyFiles, setRadiologyFiles] = useState<{id: string, orderId: string, url: string, type: string}[]>(() => storage.get(STORAGE_KEYS.RADIOLOGY_FILES, []));
+
+  // Radiologist Advanced Workstation States
+  const [selectedRadioOrder, setSelectedRadioOrder] = useState<string>('');
+  const [selectedRadioTemplate, setSelectedRadioTemplate] = useState<string>('chest-xray');
+  const [radioFindings, setRadioFindings] = useState<string>('');
+  const [radioClinicalNotes, setRadioClinicalNotes] = useState<string>('');
+  const [uploadedRadioUrl, setUploadedRadioUrl] = useState<string>('');
+  const [selectedBillId, setSelectedBillId] = useState<string>('');
+  const [radioBillPaymentMode, setRadioBillPaymentMode] = useState<'Cash' | 'Card' | 'UPI' | 'Insurance'>('Cash');
 
   // Lab Packages
   const LAB_PACKAGES = [
@@ -264,6 +276,8 @@ export default function Lab() {
     { id: 'urine', name: 'Urine Analysis' },
     { id: 'misc', name: 'Miscellaneous' }
   ]));
+  const [isAddGroupOpen, setIsAddGroupOpen] = useState(false);
+  const [newGroupName, setNewGroupName] = useState('');
 
   const handleExternalUpload = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -305,6 +319,123 @@ export default function Lab() {
       };
       reader.readAsDataURL(file);
     }
+  };
+
+  // Workstation interactive actions
+  const handleWorkstationUpload = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (!selectedRadioOrder) {
+        toast.error('Please select an active radiology order first');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64Url = reader.result as string;
+        const newFile = {
+          id: `rf-${Date.now()}`,
+          orderId: selectedRadioOrder,
+          url: base64Url,
+          type: file.type
+        };
+        const updated = [newFile, ...radiologyFiles];
+        setRadiologyFiles(updated);
+        storage.set(STORAGE_KEYS.RADIOLOGY_FILES, updated);
+        setUploadedRadioUrl(base64Url);
+        toast.success('Radiology scan uploaded successfully to current order!');
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const applyRadiologyTemplate = (templateKey: string) => {
+    const templates: Record<string, any> = {
+      'chest-xray': {
+        findings: 'Chest X-Ray PA View:\n- Both lung fields show normal vascularity with no consolidation.\n- Bony cage & thoracic soft tissues are normal.\n- Heart size and configuration are within normal limits.\n- Diaphragmatic domes are smooth and translucent.',
+        notes: 'No active clinical pathology detected.'
+      },
+      'spine-xray': {
+        findings: 'X-Ray Lumbar Spine AP/Lateral:\n- Vertebral body heights and joint spaces are within normal limits.\n- Pedicles, laminae, and spinous processes are intact.\n- Normal lumbar lordosis preserved with no evidence of subluxation.',
+        notes: 'Normal study of the lumbar spine.'
+      },
+      'usg-abdomen': {
+        findings: 'USG Abdomen & Pelvis:\n- Liver displays normal size and homogeneous echotexture.\n- Gall bladder is thin-walled and contains no calculus/sludge.\n- Both kidneys, spleen, and pancreas are normal.\n- No evidence of free fluid or intra-abdominal lymphadenopathy.',
+        notes: 'Normal clinical baseline scan.'
+      }
+    };
+    setSelectedRadioTemplate(templateKey);
+    const t = templates[templateKey];
+    if (t) {
+      setRadioFindings(t.findings);
+      setRadioClinicalNotes(t.notes);
+      toast.success(`Applied report findings template!`);
+    }
+  };
+
+  const handlePublishRadiologyResult = async () => {
+    if (!selectedRadioOrder) {
+      toast.error('Please select a radiology order to publish');
+      return;
+    }
+    
+    const updates = {
+      result_value: 'Report Generated & Published',
+      clinical_notes: radioClinicalNotes,
+      findings: radioFindings,
+      status: 'Completed',
+      updated_at: new Date().toISOString()
+    };
+
+    const result = await supabaseService.updateRadiologyRecord(selectedRadioOrder, updates);
+    if (result) {
+      const normalizedResult = {
+        ...result,
+        category: 'radiology',
+        result_value: result.result_notes || result.result_value || 'Completed',
+        result: result.result_value || result.result_notes || 'Completed',
+        clinicalNotes: result.clinical_notes || '',
+        findings: result.findings || ''
+      };
+      setTestOrders(testOrders.map(t => t.id === selectedRadioOrder ? { ...t, ...normalizedResult } : t));
+      toast.success('Radiology report generated, verified and published successfully!');
+      
+      setSelectedRadioOrder('');
+      setRadioFindings('');
+      setRadioClinicalNotes('');
+      setUploadedRadioUrl('');
+    } else {
+      const fallbackResult = {
+        id: selectedRadioOrder,
+        category: 'radiology',
+        result_value: 'Completed / Report Released',
+        result: 'Completed / Report Released',
+        clinicalNotes: radioClinicalNotes,
+        findings: radioFindings,
+        status: 'Completed',
+        updated_at: new Date().toISOString()
+      };
+      setTestOrders(testOrders.map(t => t.id === selectedRadioOrder ? { ...t, ...fallbackResult } : t));
+      toast.success('Radiology report generated & published (Offline Mode)!');
+      
+      setSelectedRadioOrder('');
+      setRadioFindings('');
+      setRadioClinicalNotes('');
+      setUploadedRadioUrl('');
+    }
+  };
+
+  const handleCollectWorkstationBill = (billId: string) => {
+    const billToPay = bills.find(b => b.id === billId);
+    if (!billToPay) {
+      toast.error('Invoice/Bill not found');
+      return;
+    }
+
+    const updatedBills = bills.map(b => b.id === billId ? { ...b, status: 'Paid', payment_mode: radioBillPaymentMode } : b);
+    setBills(updatedBills);
+    storage.set(STORAGE_KEYS.LAB_BILLS, updatedBills);
+    toast.success(`Bill collected successfully (${formatCurrency(billToPay.paid_amount || billToPay.total_amount)} via ${radioBillPaymentMode})!`);
+    setSelectedBillId('');
   };
 
   // Result entry state
@@ -1272,6 +1403,330 @@ export default function Lab() {
             </Card>
           </div>
 
+          {activeTab === 'radiology' && (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 my-6 animate-in fade-in duration-300">
+              {/* Left Column: X-Ray Report Generator & Scan Upload */}
+              <Card className="lg:col-span-2 border-none shadow-md bg-gradient-to-br from-white to-slate-50/50">
+                <CardHeader className="border-b border-slate-100 pb-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="text-base font-bold text-slate-800 flex items-center gap-2">
+                        <FlaskConical className="w-5 h-5 text-indigo-600 animate-pulse" />
+                        Radiologist Interactive RIS Workstation
+                      </CardTitle>
+                      <CardDescription className="text-xs">
+                        Prepare clinical findings, upload scan imaging, and publish verified digital X-Ray reports.
+                      </CardDescription>
+                    </div>
+                    {isRadiologist ? (
+                      <Badge className="bg-emerald-500 hover:bg-emerald-600 text-white text-[10px] uppercase font-bold py-1">
+                        Active Radiologist Session
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="text-indigo-600 border-indigo-100 bg-indigo-50/50 text-[10px] font-bold">
+                        RIS Workstation Preview
+                      </Badge>
+                    )}
+                  </div>
+                </CardHeader>
+                <CardContent className="p-5 space-y-4">
+                  {/* Select Order */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-semibold text-slate-700">Select Active Pathology/Radiology Order *</Label>
+                      <Select 
+                        value={selectedRadioOrder} 
+                        onValueChange={(val) => {
+                          setSelectedRadioOrder(val);
+                          const ord = testOrders.find(o => o.id === val);
+                          if (ord) {
+                            setRadioFindings(ord.findings || '');
+                            setRadioClinicalNotes(ord.clinicalNotes || '');
+                            const image = radiologyFiles.find(f => f.orderId === val)?.url || '';
+                            setUploadedRadioUrl(image);
+                          }
+                        }}
+                      >
+                        <SelectTrigger className="h-9 text-xs bg-white">
+                          <SelectValue placeholder="-- Select Radiology Patient/Order --" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {testOrders.length === 0 ? (
+                            <SelectItem value="none" disabled>No active orders found</SelectItem>
+                          ) : (
+                            testOrders.map((ord: any) => (
+                              <SelectItem key={ord.id} value={ord.id}>
+                                {ord.patients?.name || ord.patient || 'Unknown'} - {ord.test_name} (#{ord.id.slice(0, 8)}) [{ord.status}]
+                              </SelectItem>
+                            ))
+                          )}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-semibold text-slate-700">Apply Standard Diagnostic Templates</Label>
+                      <div className="flex gap-2">
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          type="button"
+                          className="h-9 text-[11px] px-2.5 bg-white border-slate-200"
+                          onClick={() => applyRadiologyTemplate('chest-xray')}
+                        >
+                          Chest X-Ray
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          type="button"
+                          className="h-9 text-[11px] px-2.5 bg-white border-slate-200"
+                          onClick={() => applyRadiologyTemplate('spine-xray')}
+                        >
+                          Lumbar Spine
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          type="button"
+                          className="h-9 text-[11px] px-2.5 bg-white border-slate-200"
+                          onClick={() => applyRadiologyTemplate('usg-abdomen')}
+                        >
+                          USG Abdomen
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Radiology Scan Upload Section */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="flex flex-col justify-between p-4 bg-slate-50 border border-slate-200 border-dashed rounded-xl relative group">
+                      <div>
+                        <span className="text-xs font-bold text-slate-600 block mb-1">Upload Scanned X-Ray Report Image</span>
+                        <p className="text-[10px] text-muted-foreground mr-4">Select an imaging JPEG/PNG format to overlay onto this digital study.</p>
+                      </div>
+                      <div className="mt-3 relative flex gap-2">
+                        <input 
+                          type="file" 
+                          className="absolute inset-0 opacity-0 cursor-pointer" 
+                          onChange={handleWorkstationUpload}
+                          accept="image/*"
+                          disabled={!selectedRadioOrder}
+                        />
+                        <Button variant="outline" size="sm" className="h-8 text-xs bg-white pointer-events-none" disabled={!selectedRadioOrder}>
+                          <Upload className="w-3.5 h-3.5 mr-1.5" />
+                          Choose Scan Image
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          type="button"
+                          className="h-8 text-[10px] text-indigo-600 font-semibold"
+                          disabled={!selectedRadioOrder}
+                          onClick={() => {
+                            if (!selectedRadioOrder) {
+                              toast.error('Please select an active order first');
+                              return;
+                            }
+                            const seedUrl = `https://picsum.photos/seed/xray_${selectedRadioOrder}/500/500`;
+                            const newFile = {
+                              id: `rf-seed-${Date.now()}`,
+                              orderId: selectedRadioOrder,
+                              url: seedUrl,
+                              type: 'image/jpeg'
+                            };
+                            const updated = [newFile, ...radiologyFiles];
+                            setRadiologyFiles(updated);
+                            storage.set(STORAGE_KEYS.RADIOLOGY_FILES, updated);
+                            setUploadedRadioUrl(seedUrl);
+                            toast.success('Medical Chest X-ray diagnostic scan placeholder added!');
+                          }}
+                        >
+                          Generate Diagnostic Mock
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="border border-slate-100 rounded-xl bg-slate-900 overflow-hidden flex items-center justify-center relative min-h-[110px] group">
+                      {uploadedRadioUrl ? (
+                        <>
+                          <img 
+                            src={uploadedRadioUrl} 
+                            alt="Scan preview" 
+                            className="max-h-[140px] w-full object-contain"
+                            referrerPolicy="no-referrer"
+                          />
+                          <Button 
+                            variant="destructive" 
+                            size="icon" 
+                            className="absolute top-1.5 right-1.5 h-6 w-6 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                            onClick={() => {
+                              setUploadedRadioUrl('');
+                              setRadiologyFiles(radiologyFiles.filter(f => f.orderId !== selectedRadioOrder));
+                              toast.info('Scan removed');
+                            }}
+                          >
+                            ×
+                          </Button>
+                        </>
+                      ) : (
+                        <div className="text-center p-3">
+                          <ImageIcon className="w-6 h-6 text-slate-500 mx-auto mb-1" />
+                          <p className="text-[10px] text-slate-400">No report scan uploaded for current order.</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Findings and Clinical Interpretation */}
+                  <div className="space-y-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-semibold text-slate-700">Clinical Findings & Diagnosis Summary *</Label>
+                      <textarea 
+                        className="w-full min-h-[90px] p-2.5 bg-white border border-slate-200 rounded-lg text-xs font-mono focus:ring-1 focus:ring-indigo-500 outline-none"
+                        value={radioFindings}
+                        onChange={(e) => setRadioFindings(e.target.value)}
+                        placeholder="State clinical observation, shadow densities, cardiac indices, costophrenic recesses etc..."
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-semibold text-slate-700">Impression / Clinical Notes & Recommendations</Label>
+                      <textarea 
+                        className="w-full min-h-[60px] p-2.5 bg-white border border-slate-200 rounded-lg text-xs focus:ring-1 focus:ring-indigo-500 outline-none"
+                        value={radioClinicalNotes}
+                        onChange={(e) => setRadioClinicalNotes(e.target.value)}
+                        placeholder="Final radiologist diagnosis. Recommend follow-up scans or specific clinician actions here..."
+                      />
+                    </div>
+                  </div>
+
+                  <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+                    <span className="text-[10px] text-slate-400 font-medium">
+                      Releasing this report automatically publishes it to the primary patient profile and clinician dashboard.
+                    </span>
+                    <Button 
+                      className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-5 h-9 shrink-0 animate-bounce"
+                      onClick={handlePublishRadiologyResult}
+                      disabled={!selectedRadioOrder || !radioFindings}
+                    >
+                      <CheckCircle2 className="w-4 h-4 mr-2" />
+                      Publish & Release X-Ray Result
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Right Column: Collect Outstanding Radiology Bills */}
+              <Card className="border-none shadow-md bg-white">
+                <CardHeader className="border-b border-slate-100 pb-3">
+                  <CardTitle className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                    <Receipt className="w-4 h-4 text-emerald-600" />
+                    Radiology Outstanding Bill Collector
+                  </CardTitle>
+                  <CardDescription className="text-xs">
+                    View outstanding radiology service receipts, authorize invoicing, and process payments instantly on reception bypass.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="p-4 space-y-4">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-slate-700">Select Outstanding Pending Invoice</Label>
+                    <Select 
+                      value={selectedBillId} 
+                      onValueChange={(val) => setSelectedBillId(val)}
+                    >
+                      <SelectTrigger className="h-9 text-xs bg-slate-50 border-none">
+                        <SelectValue placeholder="-- Select Outstanding Invoice --" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {bills.filter(b => b.status === 'Pending').length === 0 ? (
+                          <SelectItem value="none" disabled>No pending invoices found</SelectItem>
+                        ) : (
+                          bills.filter(b => b.status === 'Pending').map((bill: any) => (
+                            <SelectItem key={bill.id} value={bill.id}>
+                              #{bill.id.slice(0, 8)} - {bill.patients?.name || bill.patient} ({formatCurrency(bill.paid_amount || bill.total_amount)})
+                            </SelectItem>
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {selectedBillId && selectedBillId !== 'none' ? (
+                    (() => {
+                      const activeBill = bills.find(b => b.id === selectedBillId);
+                      if (!activeBill) return null;
+                      return (
+                        <div className="p-4 bg-emerald-50/40 rounded-xl border border-emerald-100/50 space-y-3 animate-in slide-in-from-top-1 duration-200">
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <p className="text-xs font-black text-slate-800">{activeBill.patients?.name || activeBill.patient}</p>
+                              <p className="text-[10px] text-muted-foreground">Invoice #{activeBill.id.slice(0, 8)}</p>
+                            </div>
+                            <Badge className="bg-amber-100 text-amber-700 border-none text-[9px] hover:bg-amber-100 uppercase font-black">
+                              Outstanding Payment
+                            </Badge>
+                          </div>
+
+                          <div className="space-y-1.5 border-t border-emerald-100/30 pt-2 text-[11px] text-slate-600">
+                            <div className="flex justify-between font-bold">
+                              <span>Radiology Tests:</span>
+                              <span className="text-[10px] text-slate-400">Rate Card Base</span>
+                            </div>
+                            <div className="space-y-1 text-slate-500 font-medium pl-1">
+                              {activeBill.invoice_items?.map((item: any, idx: number) => (
+                                <div key={idx} className="flex justify-between text-[11px]">
+                                  <span>• {item.item_name || item.name}</span>
+                                  <span>{formatCurrency(item.unit_price || item.price || 0)}</span>
+                                </div>
+                              ))}
+                            </div>
+                            <div className="flex justify-between border-t border-dashed border-emerald-100/60 pt-2 font-black text-slate-800 text-sm">
+                              <span>Total Amount Due:</span>
+                              <span className="text-emerald-700">{formatCurrency(activeBill.paid_amount || activeBill.total_amount || 250)}</span>
+                            </div>
+                          </div>
+
+                          <div className="space-y-1.5 pt-1">
+                            <Label className="text-[10px] font-bold uppercase text-slate-500">Select Collection Method</Label>
+                            <div className="grid grid-cols-4 gap-1">
+                              {['Cash', 'Card', 'UPI', 'Insurance'].map((mode) => (
+                                <Button
+                                  key={mode}
+                                  variant="outline"
+                                  size="sm"
+                                  type="button"
+                                  className={`h-8 text-[11px] px-0 ${radioBillPaymentMode === mode ? 'bg-emerald-600 border-none text-white hover:bg-emerald-700' : 'bg-white hover:bg-slate-50'}`}
+                                  onClick={() => setRadioBillPaymentMode(mode as any)}
+                                >
+                                  {mode}
+                                </Button>
+                              ))}
+                            </div>
+                          </div>
+
+                          <Button 
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white w-full h-9 font-bold text-xs"
+                            onClick={() => handleCollectWorkstationBill(activeBill.id)}
+                          >
+                            <CreditCard className="w-4 h-4 mr-1.5" />
+                            Collect Bill & Process Receipt
+                          </Button>
+                        </div>
+                      );
+                    })()
+                  ) : (
+                    <div className="h-44 flex flex-col items-center justify-center border border-dashed border-slate-200 rounded-xl text-center p-4">
+                      <Receipt className="w-7 h-7 text-slate-300 mb-2" />
+                      <p className="text-xs font-semibold text-slate-600">No active invoice selected</p>
+                      <p className="text-[10px] text-slate-400 mt-1">Select an outstanding billing receipt from the list above to process collection.</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
           <Card className="border-none shadow-sm">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
               <CardTitle className="text-lg">Test Orders</CardTitle>
@@ -1606,10 +2061,64 @@ export default function Lab() {
                   </div>
                 ))}
                 <Separator className="my-2" />
-                <Button variant="ghost" size="sm" className="w-full justify-start text-medical-blue h-8 text-xs font-semibold">
-                  <Plus className="w-3 h-3 mr-2" />
-                  Add New Group
-                </Button>
+                <Dialog open={isAddGroupOpen} onOpenChange={setIsAddGroupOpen}>
+                  <DialogTrigger asChild>
+                    <Button variant="ghost" size="sm" className="w-full justify-start text-medical-blue h-8 text-xs font-semibold" onClick={() => setIsAddGroupOpen(true)}>
+                      <Plus className="w-3 h-3 mr-2" />
+                      Add New Group
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-[400px] bg-white rounded-2xl">
+                    <DialogHeader>
+                      <DialogTitle className="text-sm font-bold">Create Test Group</DialogTitle>
+                      <DialogDescription className="text-xs text-slate-500">
+                        Add a new pathology test group or profile category.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-3 py-3 text-xs">
+                      <div className="space-y-1">
+                        <Label className="text-xs font-semibold text-slate-700">Group Name *</Label>
+                        <Input 
+                          placeholder="e.g. Immunology" 
+                          value={newGroupName} 
+                          onChange={e => setNewGroupName(e.target.value)}
+                          className="h-9 text-xs"
+                        />
+                      </div>
+                    </div>
+                    <DialogFooter>
+                      <Button variant="outline" size="sm" onClick={() => {
+                        setIsAddGroupOpen(false);
+                        setNewGroupName('');
+                      }}>
+                        Cancel
+                      </Button>
+                      <Button 
+                        size="sm" 
+                        className="bg-medical-blue text-white"
+                        onClick={() => {
+                          if (!newGroupName.trim()) {
+                            toast.error('Please enter a group name');
+                            return;
+                          }
+                          const id = newGroupName.trim().toLowerCase().replace(/\s+/g, '-');
+                          if (testGroups.some((g: any) => g.id === id)) {
+                            toast.error('Group already exists');
+                            return;
+                          }
+                          const updated = [...testGroups, { id, name: newGroupName.trim() }];
+                          setTestGroups(updated);
+                          storage.set('lab_test_groups', updated);
+                          toast.success('Successfully created new test group!');
+                          setNewGroupName('');
+                          setIsAddGroupOpen(false);
+                        }}
+                      >
+                        Create Group
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
               </CardContent>
             </Card>
 

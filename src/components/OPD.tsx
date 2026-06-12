@@ -925,9 +925,71 @@ export default function OPD() {
     }
   };
 
-  const handleDeleteAppointment = (id: string) => {
-    setAppointments(appointments.filter(a => a.id !== id));
-    toast.success('Appointment cancelled');
+  const handleDeleteAppointment = async (id: string) => {
+    const updated = appointments.filter(a => a.id !== id);
+    setAppointments(updated);
+    storage.set(STORAGE_KEYS.APPOINTMENTS, updated);
+    
+    try {
+      if (id && !id.startsWith('apt-') && !id.startsWith('off-')) {
+        await supabaseService.updateAppointment(id, { status: 'Cancelled' });
+      }
+    } catch (e) {
+      console.warn('Supabase cancel alignment error:', e);
+    }
+    
+    window.dispatchEvent(new Event('storage'));
+    toast.success('Appointment cancelled successfully');
+  };
+
+  const printAppointmentToken = (apt: any) => {
+    const printWindow = window.open('', '_blank', 'width=400,height=550');
+    if (!printWindow) {
+      toast.error('Please allow popups/tabs to print OPD tokens');
+      return;
+    }
+    const patName = patients.find(p => p.id === apt.patientId || p.id === apt.patient_id)?.name || apt.patientName || 'WALK-IN PATIENT';
+    const patMRN = patients.find(p => p.id === apt.patientId || p.id === apt.patient_id)?.mrn || apt.patientMrn || 'N/A';
+    
+    const tokenHtml = `
+      <html>
+        <head>
+          <title>OPD Consultation Token</title>
+          <style>
+            body { font-family: 'Courier New', Courier, monospace; padding: 25px; color: #000; text-align: center; }
+            .header { border-bottom: 2px dashed #333; padding-bottom: 12px; margin-bottom: 15px; }
+            .hospital-name { font-size: 16px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.5px; }
+            .token-num { font-size: 42px; font-weight: 900; margin: 18px 0; border: 2px solid #000; padding: 8px 16px; display: inline-block; border-radius: 4px; }
+            .info-row { text-align: left; font-size: 13px; margin: 6px 0; line-height: 1.4; }
+            .info-label { font-weight: Bold; text-transform: uppercase; color: #333; }
+            .footer { border-top: 2px dashed #333; margin-top: 22px; padding-top: 12px; font-size: 11px; line-height: 1.4; color: #555; }
+          </style>
+        </head>
+        <body onload="window.print(); window.close();">
+          <div class="header">
+            <div class="hospital-name">GREENHILL SUPER SPECIALTY HOSPITAL</div>
+            <div style="font-size: 10px; font-weight: Bold; margin-top: 3px; color: #444;">OPD CLINIC APPOINTMENT SLIP</div>
+          </div>
+          <div>
+            <div style="font-size: 12px; font-weight: Bold;">SESSION DATE: ${apt.appointment_date || apt.date || new Date().toISOString().split('T')[0]}</div>
+            <div class="token-num">${apt.token || 'TK-' + (apt.id ? String(apt.id).slice(-3).toUpperCase() : '099')}</div>
+          </div>
+          <div style="margin: 20px 0; border: 1px solid #eee; padding: 10px; border-radius: 4px;">
+            <div class="info-row"><span class="info-label">PATIENT NAME :</span> ${patName}</div>
+            <div class="info-row"><span class="info-label">PATIENT MRN  :</span> ${patMRN}</div>
+            <div class="info-row"><span class="info-label">OPD DOCTOR   :</span> ${apt.doctor || 'Dr. Rajesh Sharma'}</div>
+            <div class="info-row"><span class="info-label">TIME BLOCK   :</span> ${apt.appointment_time || apt.time || '10:00 AM'}</div>
+            <div class="info-row"><span class="info-label">URGENCY LEVEL:</span> ${apt.urgency || 'Routine'}</div>
+          </div>
+          <div class="footer">
+            <p>Please present this slip at OPD Consultation chamber outer disk. Wait for your turn token call.</p>
+            <p style="font-weight: 900; color: #000; margin-top: 5px;">HAVE A HEALTHY DAY!</p>
+          </div>
+        </body>
+      </html>
+    `;
+    printWindow.document.write(tokenHtml);
+    printWindow.document.close();
   };
 
   const handleExportData = () => {
@@ -1889,7 +1951,7 @@ export default function OPD() {
                               <History className="w-4 h-4" />
                             </Button>
                           )}
-                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => toast.success('Printing token...')}>
+                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => printAppointmentToken(apt)}>
                             <Printer className="w-4 h-4" />
                           </Button>
                           {!isAccountant && (
