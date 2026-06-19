@@ -164,7 +164,7 @@ export default function OPD() {
   const [previewData, setPreviewData] = useState<{url: string, name: string} | null>(null);
   const [selectedPatient, setSelectedPatient] = useState<any>(null);
   const currentUser = storage.get(STORAGE_KEYS.SESSION_USER, null);
-  const isAccountant = currentUser?.role === 'ACCOUNTANT';
+  const isAccountant = currentUser?.role === 'ACCOUNTANT' || currentUser?.role === 'ACCOUNTS';
 
   // Patient Clinical History states
   const [selectedPatientVitals, setSelectedPatientVitals] = useState<any[]>([]);

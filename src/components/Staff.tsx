@@ -50,7 +50,7 @@ import { canUserModifyRecord } from '@/utils/rbac';
 
 export default function Staff() {
   const currentUser = storage.get(STORAGE_KEYS.SESSION_USER, null);
-  const isAccountant = currentUser?.role === 'ACCOUNTANT';
+  const isAccountant = currentUser?.role === 'ACCOUNTANT' || currentUser?.role === 'ACCOUNTS';
   const [staff, setStaff] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');

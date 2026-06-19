@@ -339,7 +339,7 @@ export default function IPD() {
 
   const currentUser = storage.get(STORAGE_KEYS.SESSION_USER, null);
   const isCurrentUserAdmin = currentUser?.role === 'SUPER_ADMIN' || currentUser?.role === 'HOSPITAL_ADMIN' || currentUser?.role === 'ADMIN' || currentUser?.role?.toUpperCase().includes('ADMIN');
-  const isAccountant = currentUser?.role === 'ACCOUNTANT';
+  const isAccountant = currentUser?.role === 'ACCOUNTANT' || currentUser?.role === 'ACCOUNTS';
 
   // --- NEW WORKFLOWS STATE ---
   const [activeTab, setActiveTab] = useState<'registration' | 'beds' | 'surgery' | 'discharge'>('beds');
@@ -863,6 +863,12 @@ export default function IPD() {
     const safeAdmissionDate = summary.admissionDate || summary.admission_date || patientAdmission?.admission_date || patientAdmission?.admissionDate || patientAdmission?.created_at || summary.created_at || new Date().toISOString();
     const formattedAdmissionDate = new Date(safeAdmissionDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 
+    const chkList = patientChecklists[pat?.id || ''] || {};
+    const accountsClearedLocal = chkList.accountsCleared || false;
+    const accountsAuditorLocal = chkList.accountsName || 'Finance Auditor';
+    const doctorClearedLocal = chkList.doctorCleared || false;
+    const doctorSignLocal = chkList.doctorName || summary.dischargeBy || 'Primary MD';
+
     const summaryHtml = `
       <html>
         <head>
@@ -1011,6 +1017,16 @@ export default function IPD() {
             <tr>
               <td class="label">Attending Clinician</td>
               <td colspan="3">${summary.dischargeBy || 'Duty Doctor'}</td>
+            </tr>
+            <tr>
+              <td class="label">Accounts Clearance</td>
+              <td style="font-weight: 700; color: ${accountsClearedLocal ? '#059669' : '#dc2626'};">
+                ${accountsClearedLocal ? `✓ CLEAR FOR DISCHARGE (${accountsAuditorLocal})` : '✗ PENDING DUES SETTLEMENT'}
+              </td>
+              <td class="label">Clinical Sign-Off</td>
+              <td style="font-weight: 700; color: ${doctorClearedLocal ? '#059669' : '#dc2626'};">
+                ${doctorClearedLocal ? `✓ APPROVED (${doctorSignLocal})` : '✗ AWAITING CLINICAL SIGN-OFF'}
+              </td>
             </tr>
           </table>
 
@@ -3122,7 +3138,7 @@ export default function IPD() {
                             id="chk-accounts"
                             checked={checklist.accountsCleared}
                             onChange={(e) => {
-                              const isAuthorized = isCurrentUserAdmin || currentUser?.role === 'ACCOUNTANT';
+                              const isAuthorized = isCurrentUserAdmin || currentUser?.role === 'ACCOUNTANT' || currentUser?.role === 'ACCOUNTS';
                               if (!isAuthorized) {
                                 toast.error("Unauthorized: Only an Accountant, Finance Auditor, or Master Admin can clear hospital billing dues.");
                                 return;
@@ -4265,6 +4281,33 @@ export default function IPD() {
                       <p className="text-[11px] opacity-90">Disposition Mode: <span className="font-bold capitalize">{dischargedSummaryToShow.dischargeType || 'Routine / Improved'}</span></p>
                     </div>
                   </div>
+
+                  {/* Discharge Clearance Status Section */}
+                  {(() => {
+                    const chk = patientChecklists[pat?.id || ''] || { doctorCleared: false, nurseCleared: false, accountsCleared: false, frontOfficeHandedOver: false };
+                    return (
+                      <div className="p-3 bg-slate-50 border border-slate-200/60 rounded-xl space-y-2">
+                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Hospital Administrative Clearance Stamps</p>
+                        <div className="grid grid-cols-2 gap-2 text-[11px]">
+                          <div className={`p-2 rounded-lg border flex items-center justify-between ${chk.doctorCleared ? 'bg-emerald-50/50 border-emerald-100 text-emerald-800' : 'bg-rose-50/50 border-rose-100 text-rose-800'}`}>
+                            <div>
+                              <p className="font-extrabold text-[10px]">Clinician Sign-off</p>
+                              {chk.doctorCleared && <p className="text-[9px] font-semibold opacity-80 leading-none mt-0.5">By: {chk.doctorName || 'Attending Doctor'}</p>}
+                            </div>
+                            <span className="font-black text-[9px] bg-white px-1 py-0.5 rounded shadow-xs">{chk.doctorCleared ? '✓ SIGNED' : '✗ PENDING'}</span>
+                          </div>
+
+                          <div className={`p-2 rounded-lg border flex items-center justify-between ${chk.accountsCleared ? 'bg-emerald-50/50 border-emerald-100 text-emerald-800' : 'bg-rose-50/50 border-rose-100 text-rose-800'}`}>
+                            <div>
+                              <p className="font-extrabold text-[10px]">Accounts & Billing</p>
+                              {chk.accountsCleared && <p className="text-[9px] font-semibold opacity-80 leading-none mt-0.5">By: {chk.accountsName || 'Finance Auditor'}</p>}
+                            </div>
+                            <span className="font-black text-[9px] bg-white px-1 py-0.5 rounded shadow-xs">{chk.accountsCleared ? '✓ ZEROED/CLEAR' : '✗ DUES PENDING'}</span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   {/* Clinical Remarks */}
                   <div className="space-y-1">

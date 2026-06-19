@@ -78,8 +78,9 @@ const navItems = [
 
 function ProtectedRoute({ children, allowedRoles, user }: { children: ReactNode, allowedRoles: string[], user: any }) {
   if (!user) return <>{children}</>;
-  const isUserAdmin = (user.role as string) === 'SUPER_ADMIN' || (user.role as string) === 'HOSPITAL_ADMIN' || (user.role as string) === 'ADMIN' || (user.role as string)?.toUpperCase().includes('ADMIN');
-  const hasAccess = isUserAdmin || allowedRoles.includes(user.role);
+  const userRole = (user.role as any) === 'ACCOUNTS' ? 'ACCOUNTANT' : user.role;
+  const isUserAdmin = (userRole as string) === 'SUPER_ADMIN' || (userRole as string) === 'HOSPITAL_ADMIN' || (userRole as string) === 'ADMIN' || (userRole as string)?.toUpperCase().includes('ADMIN');
+  const hasAccess = isUserAdmin || allowedRoles.includes(userRole);
   if (!hasAccess) {
     return (
       <div className="flex flex-col items-center justify-center p-8 m-8 bg-slate-50 border border-slate-200 rounded-3xl min-h-[400px] text-center max-w-xl mx-auto shadow-sm">
@@ -102,8 +103,9 @@ function SidebarContent({ onLogout, user, hospitalInfo }: { onLogout: () => void
   
   const filteredNavItems = navItems.filter(item => {
     if (!user) return true;
-    const isUserAdmin = (user.role as string) === 'SUPER_ADMIN' || (user.role as string) === 'HOSPITAL_ADMIN' || (user.role as string) === 'ADMIN' || (user.role as string)?.toUpperCase().includes('ADMIN');
-    return isUserAdmin || item.roles.includes(user.role as any);
+    const userRole = (user.role as any) === 'ACCOUNTS' ? 'ACCOUNTANT' : user.role;
+    const isUserAdmin = (userRole as string) === 'SUPER_ADMIN' || (userRole as string) === 'HOSPITAL_ADMIN' || (userRole as string) === 'ADMIN' || (userRole as string)?.toUpperCase().includes('ADMIN');
+    return isUserAdmin || item.roles.includes(userRole as any);
   });
   
   return (
@@ -582,7 +584,7 @@ function AppLayout({ user, hospitalInfo, handleLogout, isMobileMenuOpen, setIsMo
             <Route path="/patient-overview" element={<ProtectedRoute user={user} allowedRoles={['SUPER_ADMIN', 'DOCTOR', 'NURSE', 'RECEPTIONIST', 'RECEPTION', 'FRONT_DESK', 'ACCOUNTANT']}><PatientOverview userRole={user?.role} /></ProtectedRoute>} />
             <Route path="/expenses" element={<ProtectedRoute user={user} allowedRoles={['SUPER_ADMIN', 'ACCOUNTANT']}><Expenses /></ProtectedRoute>} />
             <Route path="/billing" element={<ProtectedRoute user={user} allowedRoles={['SUPER_ADMIN', 'ACCOUNTANT']}><Billing /></ProtectedRoute>} />
-            <Route path="/settings" element={<ProtectedRoute user={user} allowedRoles={['SUPER_ADMIN', 'ADMIN', 'HOSPITAL_ADMIN']}><AdminSettings /></ProtectedRoute>} />
+            <Route path="/settings" element={<ProtectedRoute user={user} allowedRoles={['SUPER_ADMIN', 'ADMIN', 'HOSPITAL_ADMIN']}><AdminSettings currentUser={user} onUserUpdate={(updatedUser) => setUser(updatedUser)} onHospitalUpdate={(info) => setHospitalInfo(info)} /></ProtectedRoute>} />
             <Route path="/manual" element={<ProtectedRoute user={user} allowedRoles={['SUPER_ADMIN', 'DOCTOR', 'RECEPTIONIST', 'RECEPTION', 'FRONT_DESK', 'NURSE', 'LAB_STAFF', 'PHARMACIST', 'ACCOUNTANT', 'SURGEON', 'RADIOLOGIST']}><UserManual /></ProtectedRoute>} />
           </Routes>
         </div>

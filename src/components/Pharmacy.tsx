@@ -64,7 +64,7 @@ export default function Pharmacy() {
   });
 
   const currentUser = storage.get(STORAGE_KEYS.SESSION_USER, null);
-  const isAccountant = currentUser?.role === 'ACCOUNTANT';
+  const isAccountant = currentUser?.role === 'ACCOUNTANT' || currentUser?.role === 'ACCOUNTS';
 
   const [editingBillInner, setEditingBillInner] = useState<any | null>(null);
   const [isEditBillOpen, setIsEditBillOpen] = useState(false);

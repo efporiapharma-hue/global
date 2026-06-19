@@ -190,10 +190,13 @@ CREATE TABLE IF NOT EXISTS public.pharmacy_items (
 };
 
 export default function Settings({ currentUser, onUserUpdate, onHospitalUpdate }: { currentUser?: any, onUserUpdate?: (user: any) => void, onHospitalUpdate?: (info: any) => void }) {
+  const resolvedUser = currentUser || storage.get(STORAGE_KEYS.SESSION_USER, null);
+  const isAccountant = resolvedUser?.role === 'ACCOUNTANT' || resolvedUser?.role === 'ACCOUNTS';
+  const isAdmin = resolvedUser?.role === 'SUPER_ADMIN' || resolvedUser?.role === 'ADMIN' || resolvedUser?.role?.toUpperCase().includes('ADMIN') || (resolvedUser?.email && resolvedUser.email.toLowerCase().includes('admin'));
+  const isFrontOffice = resolvedUser?.role === 'RECEPTION' || resolvedUser?.role === 'RECEPTIONIST' || resolvedUser?.role === 'FRONT_DESK' || (resolvedUser?.email && (resolvedUser.email.toLowerCase().includes('frontoffice') || resolvedUser.email.toLowerCase().includes('frontdesk')));
+  currentUser = resolvedUser;
+
   const [templateImage, setTemplateImage] = useState<string | null>(() => storage.get(STORAGE_KEYS.TEMPLATE_IMAGE, null));
-  const isAccountant = currentUser?.role === 'ACCOUNTANT';
-  const isAdmin = currentUser?.role === 'SUPER_ADMIN' || currentUser?.role === 'ADMIN' || currentUser?.role?.toUpperCase().includes('ADMIN') || (currentUser?.email && currentUser.email.toLowerCase().includes('admin'));
-  const isFrontOffice = currentUser?.role === 'RECEPTION' || currentUser?.role === 'RECEPTIONIST' || currentUser?.role === 'FRONT_DESK' || (currentUser?.email && (currentUser.email.toLowerCase().includes('frontoffice') || currentUser.email.toLowerCase().includes('frontdesk')));
 
   // Supabase SQL Editor State
   const [sqlTab, setSqlTab] = useState<'all' | 'tax_slabs' | 'billing' | 'pharmacy'>('all');

@@ -15,7 +15,8 @@ import {
   Trash2,
   Edit,
   Loader2,
-  User
+  User,
+  Coins
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -1105,8 +1106,9 @@ export default function Billing() {
     currentUser.role === 'ADMIN' ||
     currentUser.role === 'HOSPITAL_ADMIN' ||
     currentUser.role === 'ACCOUNTANT' ||
+    currentUser.role === 'ACCOUNTS' ||
     currentUser.role?.toUpperCase().includes('ADMIN') ||
-    currentUser.role?.toUpperCase().includes('ACCOUNTANT')
+    currentUser.role?.toUpperCase().includes('ACCOUNT')
   );
 
   if (!isAuthorized) {
@@ -2236,26 +2238,40 @@ export default function Billing() {
                       {conPatientInvoices.length > 0 ? (
                         <div className="space-y-6">
                           {/* Summary Totals */}
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 border border-blue-50 bg-blue-50/10 p-4 rounded-xl">
-                            <div>
-                              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Gross Combined Total</span>
-                              <h4 className="text-xl font-bold text-slate-800">
-                                {formatCurrency(conPatientInvoices.reduce((sum, b) => sum + Number(b.total_amount || b.totalAmount || 0), 0))}
-                              </h4>
-                            </div>
-                            <div>
-                              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Total Combined Discount</span>
-                              <h4 className="text-xl font-bold text-rose-500">
-                                {formatCurrency(conPatientInvoices.reduce((sum, b) => sum + Number(b.discount_amount || b.discount || 0), 0))}
-                              </h4>
-                            </div>
-                            <div>
-                              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Net Amount Settled</span>
-                              <h4 className="text-xl font-black text-emerald-600">
-                                {formatCurrency(conPatientInvoices.reduce((sum, b) => sum + Number(b.paid_amount || b.paidAmount || 0), 0))}
-                              </h4>
-                            </div>
-                          </div>
+                          {(() => {
+                            const grossTotal = conPatientInvoices.reduce((sum, b) => sum + Number(b.total_amount || b.totalAmount || 0), 0);
+                            const discTotal = conPatientInvoices.reduce((sum, b) => sum + Number(b.discount_amount || b.discount || 0), 0);
+                            const paidTotal = conPatientInvoices.reduce((sum, b) => sum + Number(b.paid_amount || b.paidAmount || 0), 0);
+                            const outstandingDues = Math.max(0, grossTotal - discTotal - paidTotal);
+                            return (
+                              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 border border-blue-50 bg-blue-50/10 p-4 rounded-xl">
+                                <div>
+                                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Gross Combined Total</span>
+                                  <h4 className="text-base font-bold text-slate-800">
+                                    {formatCurrency(grossTotal)}
+                                  </h4>
+                                </div>
+                                <div>
+                                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Total Combined Discount</span>
+                                  <h4 className="text-base font-bold text-rose-500">
+                                    {formatCurrency(discTotal)}
+                                  </h4>
+                                </div>
+                                <div>
+                                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Net Amount Settled</span>
+                                  <h4 className="text-base font-black text-emerald-600">
+                                    {formatCurrency(paidTotal)}
+                                  </h4>
+                                </div>
+                                <div className="border-l pl-4 border-slate-200">
+                                  <span className="text-[10px] text-amber-600 font-bold uppercase tracking-wider">Outstanding Dues</span>
+                                  <h4 className={`text-base font-black ${outstandingDues > 0 ? "text-rose-600 animate-pulse font-extrabold" : "text-slate-400"}`}>
+                                    {formatCurrency(outstandingDues)}
+                                  </h4>
+                                </div>
+                              </div>
+                            );
+                          })()}
 
                           {/* Timeline List group by Date */}
                           <div className="relative border-l-2 border-slate-200 ml-3 pl-6 space-y-8">
@@ -2309,6 +2325,38 @@ export default function Billing() {
                                                 <p className="text-slate-400 text-xs italic">No invoice items listed</p>
                                               )}
                                             </div>
+
+                                            {/* Dues and Collect Payment Action */}
+                                            {(() => {
+                                              const gross = Number(bill.total_amount || bill.totalAmount || 0);
+                                              const disc = Number(bill.discount_amount || bill.discount || 0);
+                                              const paid = Number(bill.paid_amount || bill.paidAmount || 0);
+                                              const billDue = Math.max(0, gross - disc - paid);
+                                              return (
+                                                <div className="mt-4 pt-3 border-t flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 text-xs">
+                                                  <div className="flex flex-wrap gap-x-4 gap-y-1 text-slate-500 font-medium">
+                                                    <span>Gross: <strong className="text-slate-800">{formatCurrency(gross)}</strong></span>
+                                                    {disc > 0 && <span>Discount: <strong className="text-rose-500">-{formatCurrency(disc)}</strong></span>}
+                                                    <span>Paid: <strong className="text-emerald-600">{formatCurrency(paid)}</strong></span>
+                                                    {billDue > 0 ? (
+                                                      <span>Outstanding Due: <strong className="text-amber-600">{formatCurrency(billDue)}</strong></span>
+                                                    ) : (
+                                                      <span className="text-emerald-600 font-extrabold flex items-center gap-1">✓ Fully Paid</span>
+                                                    )}
+                                                  </div>
+                                                  {billDue > 0 && (
+                                                    <Button 
+                                                      size="sm" 
+                                                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-7 py-0.5 px-2.5 text-[10px] gap-1 rounded-lg shrink-0 ml-auto"
+                                                      onClick={() => handleOpenReceivePayment(bill)}
+                                                    >
+                                                      <Coins className="w-3.5 h-3.5" />
+                                                      Collect Payment
+                                                    </Button>
+                                                  )}
+                                                </div>
+                                              );
+                                            })()}
                                           </div>
                                         );
                                       })}
