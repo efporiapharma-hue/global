@@ -624,13 +624,13 @@ export default function Billing() {
         <head>
           <title>Invoice - ${bill.id}</title>
           <style>
-            @page { margin: 15mm; size: A4; }
+            @page { margin: 10mm; size: A4; }
             body { 
               font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
               margin: 0; 
               padding: 0;
               color: #1e293b;
-              line-height: 1.6;
+              line-height: 1.5;
               -webkit-print-color-adjust: exact;
             }
             .template-bg {
@@ -644,24 +644,24 @@ export default function Billing() {
             }
             .content { 
               position: relative;
-              padding-top: ${templateImage ? '240px' : '20px'}; 
-              margin: 0 30px;
+              padding-top: ${templateImage ? '220px' : '15px'}; 
+              margin: 0 20px;
               z-index: 10;
             }
             .hospital-header {
               text-align: center;
-              margin-bottom: 40px;
+              margin-bottom: 20px;
               display: ${templateImage ? 'none' : 'block'};
               border-bottom: 2px solid #2563eb;
-              padding-bottom: 20px;
+              padding-bottom: 12px;
             }
-            .hospital-name { font-size: 32px; font-weight: 800; color: #2563eb; letter-spacing: -0.025em; margin-bottom: 5px; }
+            .hospital-name { font-size: 26px; font-weight: 800; color: #2563eb; letter-spacing: -0.025em; margin-bottom: 5px; }
             
             .bill-title { 
               text-align: center; 
-              font-size: 24px; 
+              font-size: 20px; 
               font-weight: 800; 
-              margin: 30px 0; 
+              margin: 15px 0; 
               color: #0f172a; 
               text-transform: uppercase;
               letter-spacing: 0.1em;
@@ -669,60 +669,68 @@ export default function Billing() {
             .info-grid { 
               border: 1px solid #e2e8f0;
               border-radius: 12px;
-              padding: 24px;
-              margin-bottom: 40px;
+              padding: 16px 20px;
+              margin-bottom: 20px;
               display: grid;
               grid-template-columns: 1fr 1fr;
-              gap: 30px;
+              gap: 20px;
               background-color: #f8fafc;
             }
-            .info-label { color: #64748b; font-weight: 700; text-transform: uppercase; font-size: 10px; margin-bottom: 6px; display: block; letter-spacing: 0.05em; }
-            .info-value { font-weight: 800; color: #0f172a; font-size: 15px; }
+            .info-label { color: #64748b; font-weight: 700; text-transform: uppercase; font-size: 10px; margin-bottom: 4px; display: block; letter-spacing: 0.05em; }
+            .info-value { font-weight: 800; color: #0f172a; font-size: 13px; }
             
-            .invoice-table { width: 100%; border-collapse: collapse; margin-bottom: 40px; }
+            .invoice-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
             .invoice-table th { 
               text-align: left; 
               background-color: #f1f5f9;
-              padding: 15px; 
+              padding: 10px 12px; 
               color: #475569; 
               font-size: 11px; 
               text-transform: uppercase; 
               font-weight: 800;
               border-bottom: 2px solid #cbd5e1;
             }
-            .invoice-table td { padding: 18px 15px; border-bottom: 1px solid #e2e8f0; font-size: 14px; }
-            .service-desc { font-weight: 800; color: #1e293b; font-size: 15px; }
-            .service-cat { font-size: 10px; color: #64748b; text-transform: uppercase; font-weight: 700; margin-top: 4px; }
+            .invoice-table td { padding: 10px 12px; border-bottom: 1px solid #e2e8f0; font-size: 13px; }
+            .service-desc { font-weight: 800; color: #1e293b; font-size: 13px; }
+            .service-cat { font-size: 10px; color: #64748b; text-transform: uppercase; font-weight: 700; margin-top: 2px; }
             
             .total-card {
               margin-left: auto;
               width: 320px;
-              padding: 24px;
+              padding: 16px 20px;
               background-color: #f8fafc;
               border-radius: 12px;
               border: 1px solid #e2e8f0;
               page-break-inside: avoid;
             }
-            .total-row { display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 15px; }
+            .total-row { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 13px; }
             .grand-total { 
               border-top: 2px solid #2563eb; 
-              margin-top: 20px; 
-              padding-top: 20px; 
+              margin-top: 12px; 
+              padding-top: 12px; 
               font-weight: 800; 
-              font-size: 22px; 
+              font-size: 16px; 
               color: #2563eb; 
             }
             
             .footer { 
-              margin-top: 100px; 
+              margin-top: 30px; 
               text-align: center;
-              padding-bottom: 40px;
+              padding-bottom: 10px;
               page-break-inside: avoid;
             }
-            .sig-section { display: flex; justify-content: space-between; margin-top: 80px; }
+            .sig-section { display: flex; justify-content: space-between; margin-top: 40px; }
             .sig-box { width: 220px; text-align: center; }
-            .sig-line { border-top: 2px solid #0f172a; margin-bottom: 10px; }
-            .sig-label { font-size: 13px; font-weight: 800; color: #475569; text-transform: uppercase; }
+            .sig-line { border-top: 2px solid #0f172a; margin-bottom: 6px; }
+            .sig-label { font-size: 11px; font-weight: 800; color: #475569; text-transform: uppercase; }
+
+            @media print {
+              html, body {
+                height: 99%;
+                overflow: hidden;
+              }
+              tr { page-break-inside: avoid; }
+            }
           </style>
         </head>
         <body>
@@ -847,31 +855,31 @@ export default function Billing() {
         <head>
           <title>Consolidated Statement - ${patient?.name}</title>
           <style>
-            @page { margin: 15mm; size: A4; }
+            @page { margin: 10mm; size: A4; }
             body { 
               font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
               margin: 0; 
               padding: 0;
               color: #1e293b;
-              line-height: 1.6;
+              line-height: 1.5;
               -webkit-print-color-adjust: exact;
             }
             .content { 
-              padding: 20px; 
-              margin: 0 30px;
+              padding: 15px; 
+              margin: 0 20px;
             }
             .hospital-header {
               text-align: center;
-              margin-bottom: 30px;
+              margin-bottom: 15px;
               border-bottom: 2px solid #0f172a;
-              padding-bottom: 20px;
+              padding-bottom: 10px;
             }
-            .hospital-name { font-size: 28px; font-weight: 800; color: #1e3a8a; margin-bottom: 5px; }
+            .hospital-name { font-size: 24px; font-weight: 800; color: #1e3a8a; margin-bottom: 4px; }
             .bill-title { 
               text-align: center; 
-              font-size: 20px; 
+              font-size: 18px; 
               font-weight: 800; 
-              margin: 20px 0; 
+              margin: 10px 0; 
               color: #0f172a; 
               text-transform: uppercase;
               letter-spacing: 0.1em;
@@ -879,69 +887,77 @@ export default function Billing() {
             .patient-info { 
               border: 1px solid #cbd5e1;
               border-radius: 8px;
-              padding: 15px;
-              margin-bottom: 30px;
+              padding: 10px 14px;
+              margin-bottom: 15px;
               display: grid;
               grid-template-columns: 1fr 1fr;
-              gap: 20px;
+              gap: 15px;
               background-color: #f8fafc;
             }
-            .info-label { color: #64748b; font-weight: 700; text-transform: uppercase; font-size: 11px; }
-            .info-value { font-weight: 800; color: #0f172a; font-size: 13px; }
+            .info-label { color: #64748b; font-weight: 700; text-transform: uppercase; font-size: 10px; }
+            .info-value { font-weight: 800; color: #0f172a; font-size: 12px; }
             
             .date-header {
               background-color: #f1f5f9;
-              padding: 8px 12px;
+              padding: 6px 10px;
               font-weight: 800;
               color: #1e293b;
-              font-size: 13px;
+              font-size: 12px;
               border-left: 4px solid #1e3a8a;
-              margin-top: 25px;
-              margin-bottom: 10px;
+              margin-top: 15px;
+              margin-bottom: 8px;
               display: flex;
               justify-content: space-between;
             }
-            .invoice-table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
+            .invoice-table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
             .invoice-table th { 
               text-align: left; 
               background-color: #f8fafc;
-              padding: 8px 12px; 
+              padding: 6px 10px; 
               color: #475569; 
               font-size: 11px; 
               text-transform: uppercase; 
               font-weight: 800;
               border-bottom: 1px solid #e2e8f0;
             }
-            .invoice-table td { padding: 10px 12px; border-bottom: 1px solid #f1f5f9; font-size: 12px; }
+            .invoice-table td { padding: 6px 10px; border-bottom: 1px solid #f1f5f9; font-size: 12px; }
             .service-desc { font-weight: 700; color: #1e293b; }
             .service-cat { font-size: 9px; color: #64748b; text-transform: uppercase; font-weight: 700; margin-top: 2px; }
             
             .summary-section {
-              margin-top: 40px;
+              margin-top: 15px;
               display: flex;
               justify-content: flex-end;
               page-break-inside: avoid;
             }
             .total-card {
               width: 320px;
-              padding: 20px;
+              padding: 12px 16px;
               background-color: #f8fafc;
               border-radius: 8px;
               border: 1px solid #cbd5e1;
             }
-            .total-row { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 14px; }
+            .total-row { display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 13px; }
             .grand-total { 
               border-top: 2px solid #1e3a8a; 
-              margin-top: 15px; 
-              padding-top: 15px; 
+              margin-top: 10px; 
+              padding-top: 10px; 
               font-weight: 800; 
-              font-size: 18px; 
+              font-size: 15px; 
               color: #1e3a8a; 
             }
-            .sig-section { display: flex; justify-content: space-between; margin-top: 60px; page-break-inside: avoid; }
+            .sig-section { display: flex; justify-content: space-between; margin-top: 35px; page-break-inside: avoid; }
             .sig-box { width: 220px; text-align: center; }
-            .sig-line { border-top: 2px solid #0f172a; margin-bottom: 8px; }
-            .sig-label { font-size: 12px; font-weight: 800; color: #475569; text-transform: uppercase; }
+            .sig-line { border-top: 2px solid #0f172a; margin-bottom: 6px; }
+            .sig-label { font-size: 11px; font-weight: 800; color: #475569; text-transform: uppercase; }
+
+            @media print {
+              html, body {
+                height: 99%;
+                overflow: hidden;
+              }
+              tr { page-break-inside: avoid; }
+            }
           </style>
         </head>
         <body>
