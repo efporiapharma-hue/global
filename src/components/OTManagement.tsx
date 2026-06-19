@@ -303,7 +303,9 @@ export default function OTManagement() {
                     onValueChange={(v) => setNewOp({...newOp, surgeonId: v})}
                   >
                     <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select surgeon" />
+                      <SelectValue placeholder="Select surgeon">
+                        {doctors.find(u => u.id === newOp.surgeonId)?.name || 'Select surgeon'}
+                      </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       {doctors.map(u => (
@@ -326,7 +328,9 @@ export default function OTManagement() {
                     onValueChange={(v) => setNewOp({...newOp, theatreId: v})}
                   >
                     <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select OT" />
+                      <SelectValue placeholder="Select OT">
+                        {theatres.find(t => t.id === newOp.theatreId)?.name || 'Select OT'}
+                      </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       {theatres.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}

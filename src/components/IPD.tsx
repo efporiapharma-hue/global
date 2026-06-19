@@ -234,6 +234,15 @@ export default function IPD() {
   const [clinicalNotes, setClinicalNotes] = useState<any[]>([]);
   const [newDoctorNote, setNewDoctorNote] = useState('');
   const [newNurseNote, setNewNurseNote] = useState('');
+  const [patientPrescriptions, setPatientPrescriptions] = useState<any[]>([]);
+  const [patientTests, setPatientTests] = useState<any[]>([]);
+  const [recommendedTestName, setRecommendedTestName] = useState('');
+  const [newPrescription, setNewPrescription] = useState({
+    medicineName: '',
+    dosage: '',
+    duration: '',
+    instructions: ''
+  });
   const [loading, setLoading] = useState(true);
 
   const fetchData = async () => {
@@ -269,19 +278,37 @@ export default function IPD() {
 
   useEffect(() => {
     if (isChartOpen && selectedPatient?.id) {
-      const loadNotes = async () => {
+      const loadChartData = async () => {
         try {
-          const notes = await supabaseService.getClinicalNotes(selectedPatient.id);
+          const [notes, rxList, orders] = await Promise.all([
+            supabaseService.getClinicalNotes(selectedPatient.id),
+            supabaseService.getPrescriptions(selectedPatient.id),
+            supabaseService.getLabTestRequests()
+          ]);
           if (notes) setClinicalNotes(notes);
+          if (rxList) setPatientPrescriptions(rxList);
+          if (orders) {
+            const filtered = orders.filter((o: any) => o.patient_id === selectedPatient.id || o.patientId === selectedPatient.id);
+            setPatientTests(filtered);
+          }
         } catch (error) {
-          console.error("Error loading clinical notes:", error);
+          console.error("Error loading patient chart data:", error);
         }
       };
-      loadNotes();
+      loadChartData();
     } else {
       setClinicalNotes([]);
+      setPatientPrescriptions([]);
+      setPatientTests([]);
       setNewDoctorNote('');
       setNewNurseNote('');
+      setRecommendedTestName('');
+      setNewPrescription({
+        medicineName: '',
+        dosage: '',
+        duration: '',
+        instructions: ''
+      });
     }
   }, [isChartOpen, selectedPatient]);
   
@@ -1121,6 +1148,95 @@ export default function IPD() {
     } catch (err: any) {
       console.error('Error saving clinical note:', err);
       toast.error('Failed to save clinical note');
+    }
+  };
+
+  const handleSavePrescription = async () => {
+    if (!newPrescription.medicineName.trim()) {
+      toast.error('Medicine name cannot be empty');
+      return;
+    }
+
+    const docName = currentUser?.name || 'Dr. Rajesh Sharma';
+    const rxData = {
+      patient_id: selectedPatient.id,
+      patientId: selectedPatient.id,
+      doctor_id: currentUser?.id || null,
+      doctorId: currentUser?.id || null,
+      doctor_name: docName,
+      doctorName: docName,
+      prescription_date: new Date().toISOString(),
+      date: new Date().toISOString().split('T')[0],
+      medicines: [
+        {
+          name: newPrescription.medicineName.trim(),
+          dosage: newPrescription.dosage.trim() || 'Once a day',
+          frequency: newPrescription.dosage.trim() || 'Once a day',
+          duration: newPrescription.duration.trim() || '3 days',
+          name_with_dose: newPrescription.medicineName.trim()
+        }
+      ],
+      medications: [
+        {
+          name: newPrescription.medicineName.trim(),
+          dosage: newPrescription.dosage.trim() || 'Once a day',
+          frequency: newPrescription.dosage.trim() || 'Once a day',
+          duration: newPrescription.duration.trim() || '3 days'
+        }
+      ],
+      advice: newPrescription.instructions.trim() || 'Complete bed rest',
+      notes: newPrescription.instructions.trim() || 'Complete bed rest'
+    };
+
+    try {
+      const saved = await supabaseService.createPrescription(rxData);
+      if (saved) {
+        toast.success(`Prescription for ${newPrescription.medicineName.trim()} created successfully`);
+        const rxList = await supabaseService.getPrescriptions(selectedPatient.id);
+        if (rxList) setPatientPrescriptions(rxList);
+        setNewPrescription({ medicineName: '', dosage: '', duration: '', instructions: '' });
+      } else {
+        toast.error('Failed to save prescription');
+      }
+    } catch (err) {
+      console.error('Error saving prescription:', err);
+      toast.error('Failed to save prescription');
+    }
+  };
+
+  const handleRecommendTest = async () => {
+    if (!recommendedTestName) {
+      toast.error('Please select a test type');
+      return;
+    }
+
+    const testRequest = {
+      patient_id: selectedPatient.id,
+      patientId: selectedPatient.id,
+      test_name: recommendedTestName,
+      requested_by: currentUser?.id || null,
+      requestedBy: currentUser?.id || null,
+      status: 'Pending',
+      urgency: 'Routine',
+      requested_at: new Date().toISOString()
+    };
+
+    try {
+      const saved = await supabaseService.createLabTestRequest(testRequest);
+      if (saved) {
+        toast.success(`Recommended ${recommendedTestName} successfully`);
+        const orders = await supabaseService.getLabTestRequests();
+        if (orders) {
+          const filtered = orders.filter((o: any) => o.patient_id === selectedPatient.id || o.patientId === selectedPatient.id);
+          setPatientTests(filtered);
+        }
+        setRecommendedTestName('');
+      } else {
+        toast.error('Failed to save test recommendation');
+      }
+    } catch (err) {
+      console.error('Error recommending test:', err);
+      toast.error('Failed to save test recommendation');
     }
   };
 
@@ -3726,33 +3842,13 @@ export default function IPD() {
                     );
                   })}
                   
-                  {/* Fallback to static mock notes only if list is empty */}
+                  {/* Fallback only if list is empty */}
                   {clinicalNotes.filter(n => n.note_type === 'DOCTOR').length === 0 && (
-                    <>
-                      <div className="p-4 rounded-xl bg-slate-50 border border-slate-100 relative overflow-hidden">
-                        <div className="absolute top-0 left-0 w-1 h-full bg-medical-blue"></div>
-                        <div className="flex justify-between items-start mb-2">
-                          <p className="text-xs font-bold text-medical-blue uppercase">Dr. Rajesh Sharma</p>
-                          <p className="text-[10px] text-slate-400">12-Apr-2024 09:30 AM</p>
-                        </div>
-                        <p className="text-sm text-slate-700 leading-relaxed">
-                          Patient showing improvement in respiratory symptoms. Lung sounds are clearer. 
-                          Continue nebulization therapy. Monitor oxygen saturation every 2 hours.
-                        </p>
-                      </div>
-                      
-                      <div className="p-4 rounded-xl bg-slate-50 border border-slate-100 relative overflow-hidden">
-                        <div className="absolute top-0 left-0 w-1 h-full bg-medical-blue/30"></div>
-                        <div className="flex justify-between items-start mb-2">
-                          <p className="text-xs font-bold text-slate-500 uppercase">Dr. Rajesh Sharma</p>
-                          <p className="text-[10px] text-slate-400">11-Apr-2024 06:15 PM</p>
-                        </div>
-                        <p className="text-sm text-slate-700 leading-relaxed">
-                          Initial assessment completed. Patient admitted with acute bronchitis. 
-                          Started on IV antibiotics and hydration.
-                        </p>
-                      </div>
-                    </>
+                    <div className="p-6 text-center border border-dashed border-slate-200 rounded-xl bg-slate-50/50">
+                      <FileText className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                      <p className="text-sm font-medium text-slate-500">No doctor notes registered yet</p>
+                      <p className="text-xs text-slate-400">Doctor should enter a clinical note below to save. New notes will be visible immediately.</p>
+                    </div>
                   )}
 
                   <div className="pt-4 border-t">
@@ -3808,18 +3904,12 @@ export default function IPD() {
                     );
                   })}
                   
-                  {/* Fallback to static mock notes only if list is empty */}
+                  {/* Fallback only if list is empty */}
                   {clinicalNotes.filter(n => n.note_type === 'NURSE').length === 0 && (
-                    <div className="p-4 rounded-xl bg-emerald-50/50 border border-emerald-100 relative overflow-hidden">
-                      <div className="absolute top-0 left-0 w-1 h-full bg-emerald-500"></div>
-                      <div className="flex justify-between items-start mb-2">
-                        <p className="text-xs font-bold text-emerald-600 uppercase">Nurse Meena</p>
-                        <p className="text-[10px] text-slate-400">12-Apr-2024 11:00 AM</p>
-                      </div>
-                      <p className="text-sm text-slate-700 leading-relaxed">
-                        Patient's temperature recorded at 99.1°F. Administered prescribed oral medications. 
-                        Patient complained of mild headache. Encouraged fluid intake.
-                      </p>
+                    <div className="p-6 text-center border border-dashed border-emerald-100 rounded-xl bg-emerald-50/20">
+                      <FileText className="w-8 h-8 text-emerald-300 mx-auto mb-2" />
+                      <p className="text-sm font-medium text-emerald-600">No nursing notes registered yet</p>
+                      <p className="text-xs text-emerald-500/80">Nurse should enter a clinical note below to save. New notes will be visible immediately.</p>
                     </div>
                   )}
 
@@ -3843,99 +3933,178 @@ export default function IPD() {
                </TabsContent>
 
               <TabsContent value="prescription" className="mt-0 space-y-4">
-                <Card className="border-slate-100 shadow-none">
-                  <CardHeader className="p-4 bg-slate-50 flex flex-row items-center justify-between space-y-0">
-                    <div>
-                      <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Current Active Prescription</p>
-                      <p className="text-sm font-bold text-slate-800">Dr. Rajesh Sharma</p>
-                    </div>
-                    <Button variant="ghost" size="sm" className="h-8 text-medical-blue gap-1.5">
-                      <Printer className="w-3.5 h-3.5" />
-                      Print
-                    </Button>
-                  </CardHeader>
-                  <CardContent className="p-4">
-                    <div className="space-y-3">
-                      <div className="flex justify-between items-center p-2 rounded-lg bg-white border border-slate-100">
-                        <div>
-                          <p className="text-sm font-bold text-slate-800">Tab. Augmentin 625mg</p>
-                          <p className="text-[10px] text-slate-500">Antibiotic • Twice a day (1-0-1)</p>
-                        </div>
-                        <Badge className="bg-blue-50 text-blue-600 border-none">5 Days</Badge>
+                <div className="space-y-4">
+                  <div className="space-y-3 max-h-[255px] overflow-y-auto custom-scrollbar">
+                    {patientPrescriptions.map((rx: any) => {
+                      const docName = rx.doctor_name || rx.doctorName || rx.profiles?.name || 'Attending Physician';
+                      const rxDate = new Date(rx.prescription_date || rx.date || rx.created_at || Date.now()).toLocaleDateString('en-IN', {
+                        day: 'numeric',
+                        month: 'short',
+                        year: 'numeric'
+                      });
+                      
+                      let medicinesList: any[] = [];
+                      if (Array.isArray(rx.medicines)) {
+                        medicinesList = rx.medicines;
+                      } else if (typeof rx.medicines === 'string') {
+                        try { medicinesList = JSON.parse(rx.medicines); } catch(ex) {}
+                      } else if (Array.isArray(rx.medications)) {
+                        medicinesList = rx.medications;
+                      }
+                      
+                      return (
+                        <Card key={rx.id} className="border-slate-100 shadow-none bg-slate-50/50">
+                          <CardHeader className="p-3 bg-slate-100/50 flex flex-row items-center justify-between space-y-0">
+                            <div>
+                              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Prescription Card</p>
+                              <p className="text-xs font-black text-slate-700">{docName}</p>
+                            </div>
+                            <p className="text-[10px] font-bold text-slate-500 bg-white px-2 py-0.5 rounded border border-slate-100">{rxDate}</p>
+                          </CardHeader>
+                          <CardContent className="p-3 space-y-2">
+                            {medicinesList.length > 0 ? (
+                              medicinesList.map((med: any, idx: number) => (
+                                <div key={idx} className="flex justify-between items-center p-2 rounded-lg bg-white border border-slate-100">
+                                  <div>
+                                    <p className="text-xs font-bold text-slate-800">{med.name || med.medicineName}</p>
+                                    <p className="text-[9px] text-slate-500">{med.dosage || med.frequency || 'Dosage not specified'}</p>
+                                  </div>
+                                  <Badge className="bg-blue-50 text-blue-600 border-none text-[9px]">{med.duration || 'As directed'}</Badge>
+                                </div>
+                              ))
+                            ) : (
+                              <p className="text-xs text-slate-500 italic">No medicines listed in this prescription.</p>
+                            )}
+                            
+                            {(rx.advice || rx.notes) && (
+                              <div className="mt-2 pt-2 border-t border-slate-100">
+                                  <p className="text-[9px] font-bold text-slate-400 uppercase mb-1">Advice & Instructions</p>
+                                  <p className="text-xs text-slate-600 italic leading-snug">{rx.advice || rx.notes}</p>
+                                </div>
+                            )}
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
+
+                    {patientPrescriptions.length === 0 && (
+                      <div className="p-6 text-center border border-dashed border-slate-200 rounded-xl bg-slate-50/50">
+                        <Pill className="w-8 h-8 text-slate-350 mx-auto mb-2 opacity-50" />
+                        <p className="text-sm font-medium text-slate-500">No prescriptions registered yet</p>
+                        <p className="text-xs text-slate-400/80">Doctor must write a prescription in the builder form below.</p>
                       </div>
-                      <div className="flex justify-between items-center p-2 rounded-lg bg-white border border-slate-100">
-                        <div>
-                          <p className="text-sm font-bold text-slate-800">Syp. Ascoril LS</p>
-                          <p className="text-[10px] text-slate-500">Cough Syrup • 5ml Thrice a day</p>
+                    )}
+                  </div>
+
+                  {!isAccountant && (
+                    <div className="pt-4 border-t space-y-3">
+                      <Label className="text-xs font-black uppercase text-slate-500 block">Write New Prescription</Label>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <Label className="text-[10px] font-bold text-slate-500">Medicine Name</Label>
+                          <Input 
+                            placeholder="e.g. Tab. Augmentin 625mg" 
+                            value={newPrescription.medicineName}
+                            onChange={(e) => setNewPrescription({...newPrescription, medicineName: e.target.value})}
+                            className="h-8 text-xs"
+                          />
                         </div>
-                        <Badge className="bg-blue-50 text-blue-600 border-none">3 Days</Badge>
+                        <div className="space-y-1">
+                          <Label className="text-[10px] font-bold text-slate-500">Dosage / Frequency</Label>
+                          <Input 
+                            placeholder="e.g. Twice a day (1-0-1)" 
+                            value={newPrescription.dosage}
+                            onChange={(e) => setNewPrescription({...newPrescription, dosage: e.target.value})}
+                            className="h-8 text-xs"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-[10px] font-bold text-slate-500">Duration</Label>
+                          <Input 
+                            placeholder="e.g. 5 Days" 
+                            value={newPrescription.duration}
+                            onChange={(e) => setNewPrescription({...newPrescription, duration: e.target.value})}
+                            className="h-8 text-xs"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-[10px] font-bold text-slate-500">Advice / Instructions</Label>
+                           <Input 
+                             placeholder="e.g. Steam inhalation twice daily" 
+                             value={newPrescription.instructions}
+                             onChange={(e) => setNewPrescription({...newPrescription, instructions: e.target.value})}
+                             className="h-8 text-xs"
+                           />
+                        </div>
                       </div>
-                      <div className="flex justify-between items-center p-2 rounded-lg bg-white border border-slate-100">
-                        <div>
-                          <p className="text-sm font-bold text-slate-800">Tab. Pan 40mg</p>
-                          <p className="text-[10px] text-slate-500">Antacid • Once a day (Empty stomach)</p>
-                        </div>
-                        <Badge className="bg-blue-50 text-blue-600 border-none">7 Days</Badge>
+                      <div className="flex justify-end mt-2">
+                        <Button size="sm" className="bg-medical-blue h-8 text-xs font-bold px-4" onClick={handleSavePrescription}>
+                          Save Prescription
+                        </Button>
                       </div>
                     </div>
-                    <div className="mt-4 pt-3 border-t border-slate-100">
-                      <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">General Advice</p>
-                      <p className="text-xs text-slate-600 italic">Complete bed rest. Avoid cold drinks. Steam inhalation twice daily.</p>
-                    </div>
-                  </CardContent>
-                </Card>
+                  )}
+                </div>
               </TabsContent>
 
               <TabsContent value="tests" className="mt-0 space-y-4">
                 <div className="space-y-4">
                   <div>
                     <Label className="text-xs font-bold uppercase text-slate-500 mb-3 block">Recommended Tests</Label>
-                    <div className="grid grid-cols-1 gap-2">
-                      <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-lg bg-amber-100 text-amber-600 flex items-center justify-center">
-                            <FlaskConical className="w-4 h-4" />
+                    <div className="grid grid-cols-1 gap-2 max-h-[200px] overflow-y-auto custom-scrollbar">
+                      {patientTests.map((t: any) => {
+                        const requestDate = new Date(t.requested_at || t.requestedAt || Date.now()).toLocaleDateString('en-IN', {
+                          day: 'numeric',
+                          month: 'short',
+                          year: 'numeric'
+                        });
+                        const isCompleted = t.status?.toUpperCase() === 'COMPLETED' || t.status?.toUpperCase() === 'READY';
+                        return (
+                          <div key={t.id} className={`flex items-center justify-between p-3 rounded-xl border ${isCompleted ? 'bg-emerald-50 border-emerald-100 text-emerald-900' : 'bg-slate-50 border-slate-100'}`}>
+                            <div className="flex items-center gap-3">
+                              <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${isCompleted ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>
+                                {isCompleted ? <CheckCircle2 className="w-4 h-4" /> : <FlaskConical className="w-4 h-4" />}
+                              </div>
+                              <div>
+                                <p className="text-sm font-bold">{t.test_name || t.testName || 'Laboratory Investigation'}</p>
+                                <p className="text-[10px] text-slate-500">Requested on {requestDate}</p>
+                              </div>
+                            </div>
+                            <Badge className={`${isCompleted ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-50 text-amber-600'} border-none text-[9px]`}>
+                              {t.status || 'Pending'}
+                            </Badge>
                           </div>
-                          <div>
-                            <p className="text-sm font-bold">Complete Blood Count (CBC)</p>
-                            <p className="text-[10px] text-slate-500">Recommended by Attending Clinician</p>
-                          </div>
+                        );
+                      })}
+
+                      {patientTests.length === 0 && (
+                        <div className="p-6 text-center border border-dashed border-slate-200 rounded-xl bg-slate-50/50">
+                          <FlaskConical className="w-8 h-8 text-slate-350 mx-auto mb-2 opacity-50" />
+                          <p className="text-sm font-medium text-slate-500">No recommended tests yet</p>
+                          <p className="text-xs text-slate-400">Doctor can recommend a laboratory test below.</p>
                         </div>
-                        <Badge className="bg-amber-50 text-amber-600 border-none">Pending</Badge>
-                      </div>
-                      <div className="flex items-center justify-between p-3 rounded-xl bg-emerald-50 border border-emerald-100">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center">
-                            <CheckCircle2 className="w-4 h-4" />
-                          </div>
-                          <div>
-                            <p className="text-sm font-bold">Chest X-Ray (PA View)</p>
-                            <p className="text-[10px] text-slate-500">Completed on 11-Apr-2024</p>
-                          </div>
-                        </div>
-                        <Badge className="bg-emerald-100 text-emerald-700 border-none">Result Ready</Badge>
-                      </div>
+                      )}
                     </div>
                   </div>
 
                   {!isAccountant && (
                     <div className="pt-4 border-t">
-                      <Label className="text-xs font-bold uppercase text-slate-500 mb-2 block">Recommend New Test</Label>
+                      <Label className="text-xs font-bold uppercase text-slate-500 mb-2 block animate-in fade-in">Recommend New Test</Label>
                       <div className="flex gap-2">
-                        <Select>
+                        <Select value={recommendedTestName} onValueChange={setRecommendedTestName}>
                           <SelectTrigger className="flex-1">
                             <SelectValue placeholder="Select test type..." />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="cbc">CBC (Blood Test)</SelectItem>
-                            <SelectItem value="lft">Liver Function Test</SelectItem>
-                            <SelectItem value="kft">Kidney Function Test</SelectItem>
-                            <SelectItem value="xray">X-Ray Chest</SelectItem>
-                            <SelectItem value="mri">MRI Brain</SelectItem>
-                            <SelectItem value="ct">CT Scan Abdomen</SelectItem>
+                            <SelectItem value="Complete Blood Count (CBC)">CBC (Blood Test)</SelectItem>
+                            <SelectItem value="Liver Function Test (LFT)">Liver Function Test</SelectItem>
+                            <SelectItem value="Kidney Function Test (KFT)">Kidney Function Test</SelectItem>
+                            <SelectItem value="Chest X-Ray (PA View)">X-Ray Chest</SelectItem>
+                            <SelectItem value="MRI Brain Scan">MRI Brain</SelectItem>
+                            <SelectItem value="CT Scan Abdomen">CT Scan Abdomen</SelectItem>
                           </SelectContent>
                         </Select>
-                        <Button className="bg-medical-blue" onClick={() => toast.success('Test recommended successfully')}>
+                        <Button className="bg-medical-blue h-10 px-4 text-xs font-bold" onClick={handleRecommendTest}>
                           Recommend
                         </Button>
                       </div>

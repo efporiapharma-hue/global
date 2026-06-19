@@ -146,6 +146,7 @@ export default function OPD() {
   });
   const [newAppointment, setNewAppointment] = useState({ patientId: '', doctor: '', date: '', time: '', urgency: 'Routine' });
   const [patientSearchTerm, setPatientSearchTerm] = useState('');
+  const [patientRecordsSearchQuery, setPatientRecordsSearchQuery] = useState('');
   const [showPatientResults, setShowPatientResults] = useState(false);
   const [lastToken, setLastToken] = useState<{
     tokenNumber: string;
@@ -1754,7 +1755,12 @@ export default function OPD() {
           <div className="flex items-center gap-4 flex-1">
             <div className="relative w-full max-w-sm">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input placeholder="Search..." className="pl-10 bg-slate-50 border-none" />
+              <Input 
+                placeholder="Search by name, MRN, or phone..." 
+                className="pl-10 bg-slate-50 border-none" 
+                value={patientRecordsSearchQuery}
+                onChange={(e) => setPatientRecordsSearchQuery(e.target.value)}
+              />
             </div>
             {activeTab === 'queue' && (
               <div className="flex items-center gap-2">
@@ -1792,7 +1798,13 @@ export default function OPD() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {patients.map((patient) => (
+                  {patients.filter(p => {
+                    if (!patientRecordsSearchQuery.trim()) return true;
+                    const query = patientRecordsSearchQuery.toLowerCase();
+                    return (p.name || '').toLowerCase().includes(query) ||
+                           (p.mrn || '').toLowerCase().includes(query) ||
+                           (p.phone || '').includes(query);
+                  }).map((patient) => (
                     <TableRow key={patient.id} className="border-slate-50">
                       <TableCell className="font-bold text-medical-blue whitespace-nowrap">{patient.mrn}</TableCell>
                       <TableCell className="font-medium whitespace-nowrap">{patient.name}</TableCell>
@@ -1851,14 +1863,25 @@ export default function OPD() {
                               variant="ghost" 
                               size="sm" 
                               className="text-medical-blue h-8 whitespace-nowrap font-bold hover:bg-blue-50" 
-                              onClick={() => {
-                                const updatedPatients = patients.map(p => 
-                                  p.id === patient.id ? { ...p, status: 'Admitting', registrationType: 'OPD/IPD', needsAdmission: true } : p
-                                );
-                                setPatients(updatedPatients);
-                                storage.set(STORAGE_KEYS.PATIENTS, updatedPatients);
-                                window.dispatchEvent(new Event('storage'));
-                                toast.success(`${patient.name} marked for IPD Admission. You can now assign a bed in IPD Management.`);
+                              onClick={async () => {
+                                try {
+                                  const result = await supabaseService.updatePatient(patient.id, { 
+                                    status: 'Admitting', 
+                                    registrationType: 'OPD/IPD', 
+                                    needsAdmission: true 
+                                  });
+                                  const updatedPatients = patients.map(p => 
+                                    p.id === patient.id ? { ...p, ...result, status: 'Admitting', registrationType: 'OPD/IPD', needsAdmission: true } : p
+                                  );
+                                  setPatients(updatedPatients);
+                                  storage.set(STORAGE_KEYS.PATIENTS, updatedPatients);
+                                  window.dispatchEvent(new Event('storage'));
+                                  window.dispatchEvent(new CustomEvent('supabase-data-sync', { detail: { table: 'patients', action: 'update' } }));
+                                  toast.success(`${patient.name} marked for IPD Admission. You can now assign a bed in IPD Management.`);
+                                } catch (err: any) {
+                                  console.error('Error transferring to IPD:', err);
+                                  toast.error('Failed to transfer patient to IPD');
+                                }
                               }}
                             >
                               <ArrowUpRight className="w-4 h-4 mr-1.5" />
@@ -1913,6 +1936,13 @@ export default function OPD() {
                         return (apt.doctor || apt.doctorName) === selectedDoctorFilter;
                       }
                       return true;
+                    })
+                    .filter(apt => {
+                      if (!patientRecordsSearchQuery.trim()) return true;
+                      const query = patientRecordsSearchQuery.toLowerCase();
+                      return (apt.patientName || '').toLowerCase().includes(query) ||
+                             (apt.patientMrn || '').toLowerCase().includes(query) ||
+                             (apt.doctor || apt.doctorName || '').toLowerCase().includes(query);
                     })
                     .map((apt, i) => (
                       <TableRow key={apt.id} className="border-slate-50">

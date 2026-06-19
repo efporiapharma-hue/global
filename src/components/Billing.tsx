@@ -1084,6 +1084,32 @@ export default function Billing() {
       return sum + val;
     }, 0);
 
+  const isAuthorized = currentUser && (
+    currentUser.role === 'SUPER_ADMIN' ||
+    currentUser.role === 'ADMIN' ||
+    currentUser.role === 'HOSPITAL_ADMIN' ||
+    currentUser.role === 'ACCOUNTANT' ||
+    currentUser.role?.toUpperCase().includes('ADMIN') ||
+    currentUser.role?.toUpperCase().includes('ACCOUNTANT')
+  );
+
+  if (!isAuthorized) {
+    return (
+      <div className="flex flex-col items-center justify-center p-12 min-h-[500px]">
+        <div className="bg-red-50 text-red-800 p-8 rounded-2xl max-w-md w-full border border-red-200 shadow-md text-center animate-in fade-in zoom-in-95 duration-300">
+          <AlertCircle className="w-12 h-12 text-red-600 mx-auto mb-4 animate-bounce" />
+          <h2 className="text-xl font-bold mb-2 text-red-900">Access Denied</h2>
+          <p className="text-xs text-red-700 font-medium leading-relaxed mb-6">
+            Only Accountants and authorized Administration staff can view, add, or access the Hospital Accounting, Ledger, and Billing system.
+          </p>
+          <Button onClick={() => navigate('/')} className="bg-red-800 hover:bg-red-950 text-white w-full rounded-xl font-bold">
+            Return to Dashboard
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="p-6 space-y-6">
       {/* Dynamic, Vibrant, Richly Colored Banner Header */}

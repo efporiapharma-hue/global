@@ -10,7 +10,11 @@ import {
   Download,
   Edit,
   Trash2,
-  Loader2
+  Loader2,
+  Users,
+  ArrowUpRight,
+  UserCheck,
+  UserMinus
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -92,7 +96,10 @@ export default function Maternity() {
     if (patientsData) setPatients(patientsData);
     if (deliveriesData) setDeliveries(deliveriesData);
     if (newbornsData) setNewborns(newbornsData);
-    if (staffData) setStaff(staffData.filter((s: any) => s.role === 'DOCTOR' || s.role === 'SURGEON'));
+    if (staffData) setStaff(staffData.filter((s: any) => {
+      const r = s.role?.toUpperCase() || '';
+      return r === 'DOCTOR' || r === 'SURGEON' || r === 'SUPER_ADMIN' || r === 'ADMIN' || r === 'HOSPITAL_ADMIN';
+    }));
     setLoading(false);
   };
 
@@ -483,7 +490,9 @@ export default function Maternity() {
                       onValueChange={(v) => setNewDelivery({...newDelivery, surgeon_id: v})}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Select doctor" />
+                        <SelectValue placeholder="Select doctor">
+                          {staff.find(s => s.id === newDelivery.surgeon_id)?.name || 'Select doctor'}
+                        </SelectValue>
                       </SelectTrigger>
                       <SelectContent>
                         {staff.map((s: any) => (
@@ -639,6 +648,126 @@ export default function Maternity() {
         </Card>
       </div>
 
+      <Card className="border-none shadow-sm mt-6">
+        <CardHeader className="flex flex-row items-center justify-between pb-3">
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Users className="w-5 h-5 text-pink-500" />
+            Mothers & Maternal Patients Registry
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          <div className="overflow-x-auto custom-scrollbar">
+            <Table>
+              <TableHeader>
+                <TableRow className="hover:bg-transparent border-slate-100">
+                  <TableHead className="whitespace-nowrap">MRN</TableHead>
+                  <TableHead className="whitespace-nowrap">Mother Name</TableHead>
+                  <TableHead className="whitespace-nowrap">Age</TableHead>
+                  <TableHead className="whitespace-nowrap">Phone</TableHead>
+                  <TableHead className="whitespace-nowrap">Husband</TableHead>
+                  <TableHead className="whitespace-nowrap">Status</TableHead>
+                  <TableHead className="text-right whitespace-nowrap">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {mothersList.length > 0 ? mothersList.map((mother) => (
+                  <TableRow key={mother.id} className="border-slate-50">
+                    <TableCell className="font-bold text-medical-blue whitespace-nowrap">{mother.mrn}</TableCell>
+                    <TableCell className="font-medium whitespace-nowrap">{mother.name}</TableCell>
+                    <TableCell className="whitespace-nowrap">{mother.age} Yrs</TableCell>
+                    <TableCell className="whitespace-nowrap">{mother.phone || 'N/A'}</TableCell>
+                    <TableCell className="whitespace-nowrap">{mother.husband_name || 'N/A'}</TableCell>
+                    <TableCell className="whitespace-nowrap">
+                      <Badge className={`border-none ${
+                        mother.status?.toLowerCase() === 'discharged' 
+                          ? 'bg-rose-50 text-rose-600' 
+                          : mother.status?.toLowerCase() === 'post-delivery'
+                          ? 'bg-purple-50 text-purple-600'
+                          : 'bg-emerald-50 text-emerald-600'
+                      }`}>
+                        {mother.status || 'Active'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right whitespace-nowrap">
+                      <div className="flex justify-end gap-1.5">
+                        {mother.status?.toLowerCase() !== 'discharged' ? (
+                          <>
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              className="h-8 text-xs text-medical-blue hover:bg-blue-50 font-bold gap-1"
+                              onClick={async () => {
+                                try {
+                                  await supabaseService.updatePatient(mother.id, { 
+                                    status: 'Admitting', 
+                                    registrationType: 'OPD/IPD', 
+                                    needsAdmission: true 
+                                  });
+                                  toast.success(`Mother ${mother.name} is marked for IPD Admission. You can now assign her a bed in IPD Ward!`);
+                                  fetchData();
+                                } catch (error) {
+                                  toast.error('Failed to transfer mother to IPD');
+                                }
+                              }}
+                            >
+                              <ArrowUpRight className="w-3.5 h-3.5" />
+                              Admit (IPD)
+                            </Button>
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              className="h-8 text-xs text-teal-600 hover:bg-teal-50 font-bold gap-1"
+                              onClick={async () => {
+                                try {
+                                  await supabaseService.updatePatient(mother.id, { 
+                                    registration_type: 'OPD',
+                                    status: 'Active'
+                                  });
+                                  toast.success(`Mother ${mother.name} has been transferred to OPD Directory successfully!`);
+                                  fetchData();
+                                } catch (error) {
+                                  toast.error('Failed to transfer mother to OPD');
+                                }
+                              }}
+                            >
+                              <UserCheck className="w-3.5 h-3.5" />
+                              To OPD
+                            </Button>
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              className="h-8 text-xs text-rose-500 hover:bg-rose-50 font-bold gap-1"
+                              onClick={async () => {
+                                try {
+                                  await supabaseService.updatePatient(mother.id, { status: 'Discharged' });
+                                  toast.success(`Mother ${mother.name} discharged successfully!`);
+                                  fetchData();
+                                } catch (error) {
+                                  toast.error('Failed to discharge mother');
+                                }
+                              }}
+                            >
+                              <UserMinus className="w-3.5 h-3.5" />
+                              Discharge
+                            </Button>
+                          </>
+                        ) : (
+                          <span className="text-xs text-muted-foreground italic px-2">Case Discharged</span>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                )) : (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center py-6 text-muted-foreground text-sm">No mother registrations found</TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
+
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
@@ -688,7 +817,9 @@ export default function Maternity() {
                     onValueChange={(v) => setEditingDelivery({...editingDelivery, surgeon_id: v})}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Select doctor" />
+                      <SelectValue placeholder="Select doctor">
+                        {staff.find(s => s.id === editingDelivery.surgeon_id)?.name || 'Select doctor'}
+                      </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       {staff.map((s: any) => (
