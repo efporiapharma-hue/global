@@ -56,6 +56,7 @@ import Login from './components/Login';
 import UserManual from './components/UserManual';
 import Billing from './components/Billing';
 import AdminSettings from './components/Settings';
+import Staff from './components/Staff';
 
 import { storage, STORAGE_KEYS } from '@/lib/storage';
 import { MOCK_PATIENTS, MOCK_USERS } from './mockData';
@@ -73,6 +74,7 @@ const navItems = [
   { name: 'Billing & Accounts', icon: CreditCard, path: '/billing', roles: ['SUPER_ADMIN', 'ACCOUNTANT'] },
   { name: 'Expenses', icon: FileText, path: '/expenses', roles: ['SUPER_ADMIN', 'ACCOUNTANT'] },
   { name: 'Admin Settings', icon: Settings, path: '/settings', roles: ['SUPER_ADMIN', 'ADMIN', 'HOSPITAL_ADMIN'] },
+  { name: 'Staff Management', icon: Users, path: '/staff', roles: ['SUPER_ADMIN', 'ADMIN', 'HOSPITAL_ADMIN'] },
   { name: 'User Manual & Guide', icon: BookOpen, path: '/manual', roles: ['SUPER_ADMIN', 'DOCTOR', 'RECEPTIONIST', 'RECEPTION', 'FRONT_DESK', 'NURSE', 'LAB_STAFF', 'PHARMACIST', 'ACCOUNTANT', 'SURGEON', 'RADIOLOGIST'] },
 ];
 
@@ -585,6 +587,7 @@ function AppLayout({ user, hospitalInfo, handleLogout, isMobileMenuOpen, setIsMo
             <Route path="/expenses" element={<ProtectedRoute user={user} allowedRoles={['SUPER_ADMIN', 'ACCOUNTANT']}><Expenses /></ProtectedRoute>} />
             <Route path="/billing" element={<ProtectedRoute user={user} allowedRoles={['SUPER_ADMIN', 'ACCOUNTANT']}><Billing /></ProtectedRoute>} />
             <Route path="/settings" element={<ProtectedRoute user={user} allowedRoles={['SUPER_ADMIN', 'ADMIN', 'HOSPITAL_ADMIN']}><AdminSettings currentUser={user} onUserUpdate={(updatedUser) => setUser(updatedUser)} onHospitalUpdate={(info) => setHospitalInfo(info)} /></ProtectedRoute>} />
+            <Route path="/staff" element={<ProtectedRoute user={user} allowedRoles={['SUPER_ADMIN', 'ADMIN', 'HOSPITAL_ADMIN']}><Staff /></ProtectedRoute>} />
             <Route path="/manual" element={<ProtectedRoute user={user} allowedRoles={['SUPER_ADMIN', 'DOCTOR', 'RECEPTIONIST', 'RECEPTION', 'FRONT_DESK', 'NURSE', 'LAB_STAFF', 'PHARMACIST', 'ACCOUNTANT', 'SURGEON', 'RADIOLOGIST']}><UserManual /></ProtectedRoute>} />
           </Routes>
         </div>

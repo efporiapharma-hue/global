@@ -586,7 +586,7 @@ View full details at: ${shareUrl}
     return total - paid;
   };
 
-  const patientAppointments = useMemo(() => appointments.filter(a => a.patient_id === selectedPatient?.id), [appointments, selectedPatient]);
+  const patientAppointments = useMemo(() => appointments.filter(a => a.patient_id === selectedPatient?.id || a.patientId === selectedPatient?.id), [appointments, selectedPatient]);
   const patientBills = useMemo(() => billing.filter(b => b.patient_id === selectedPatient?.id), [billing, selectedPatient]);
   const patientClaims = useMemo(() => insuranceClaims.filter(c => c.patient_id === selectedPatient?.id), [insuranceClaims, selectedPatient]);
   const currentBed = useMemo(() => beds.find(b => b.patient_id === selectedPatient?.id), [beds, selectedPatient]);
@@ -858,15 +858,21 @@ View full details at: ${shareUrl}
                     {patientAppointments.length === 0 ? (
                       <p className="text-xs text-slate-400 text-center py-8 italic">No appointment history</p>
                     ) : (
-                      patientAppointments.map(app => (
-                        <div key={app.id} className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100">
-                          <div>
-                            <p className="text-sm font-bold">{formatDate(app.date)}</p>
-                            <p className="text-[10px] text-slate-500">{app.time} • {app.type}</p>
+                      patientAppointments.map(app => {
+                        const appDate = app.date || app.appointment_date || app.appointmentDate;
+                        const appTime = app.time || app.appointment_time || app.appointmentTime;
+                        const appType = app.type || app.appointment_type || 'OPD';
+                        const appDoctor = app.doctor || 'General OPD';
+                        return (
+                          <div key={app.id} className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100">
+                            <div>
+                              <p className="text-sm font-bold">{formatDate(appDate)}</p>
+                              <p className="text-[10px] text-slate-500">{appTime} • {appType} ({appDoctor})</p>
+                            </div>
+                            <Badge variant="outline" className="text-[9px] font-bold uppercase">{app.status}</Badge>
                           </div>
-                          <Badge variant="outline" className="text-[9px] font-bold uppercase">{app.status}</Badge>
-                        </div>
-                      ))
+                        );
+                      })
                     )}
                   </div>
                 </div>
